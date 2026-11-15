@@ -209,6 +209,6 @@ if (shot) {
     window.requestAnimationFrame(frame);
   }
 
-  announce('Ronin versus Kaiju. Press Enter to fight.');
+  announce('Samurai Zero. Press Enter to fight.');
   window.requestAnimationFrame(frame);
 }

@@ -1,6 +1,6 @@
 // Every tuning number and colour in one place. The playfield is a fixed 1280x720
 // logical area; the renderer scales it to the window, so no rule below depends
-// on the screen size. RONIN VS KAIJU: a lone ronin faces Raiju, the thunder kaiju,
+// on the screen size. SAMURAI ZERO: a lone samurai faces Raiju, the thunder kaiju,
 // in a burning castle town at dusk. Three minutes on the clock, three phases.
 
 export const FIELD = { width: 1280, height: 720, groundY: 664 };
@@ -12,8 +12,8 @@ export const STEP = 1 / 60;
 export const TIME_LIMIT = 180;
 
 export const RONIN = {
-  width: 36,
-  height: 64,
+  width: 72,
+  height: 118,
   runSpeed: 340,
   jumpVelocity: -880,
   gravity: 2400,
@@ -44,8 +44,8 @@ export const RONIN = {
 };
 
 export const RAIJU = {
-  width: 216,
-  height: 176,
+  width: 260,
+  height: 210,
   hp: 1050,
   /** Phase lines: below 700 the storm quickens, below 350 it rages. */
   phase2At: 700,
@@ -81,18 +81,30 @@ export const SCORE = {
 };
 
 export const PALETTE = {
-  skyTop: '#191230',
-  skyMid: '#452a55',
-  skyLow: '#a8433c',
-  horizon: '#e8722a',
-  sun: '#f2c14e',
-  sunCore: '#fbe08a',
-  fuji: '#2c2140',
-  fujiSnow: '#e8dff2',
-  townFar: '#241a30',
-  townNear: '#1c1426',
-  ground: '#241a2e',
-  groundTop: '#3a2b45',
+  skyTop: '#1a0b2e',
+  skyMid: '#5c1f3d',
+  skyLow: '#b23a2e',
+  horizon: '#f2a541',
+  sun: '#ffb347',
+  sunCore: '#ffe08a',
+  sunGlow: '#ff7a2a',
+  cloud: '#3d1f45',
+  cloudLit: '#c65a3a',
+  fuji: '#3d2b52',
+  fujiSnow: '#f2e6ff',
+  townFar: '#2e1a38',
+  townNear: '#1f1226',
+  tower: '#2a1633',
+  fire: '#ff7a2a',
+  fireCore: '#ffd94a',
+  smoke: '#4a3550',
+  water: '#3a1f4d',
+  waterShine: '#f2a541',
+  bridge: '#241530',
+  ground: '#2e1f33',
+  groundTop: '#6b4232',
+  groundCrack: '#1a1020',
+  stone: '#4a2f3d',
   torii: '#c0392b',
   toriiDark: '#7e2318',
   lantern: '#f2a541',
@@ -127,4 +139,4 @@ export const PALETTE = {
 export const FONT = '"Courier New", ui-monospace, monospace';
 
 /** Where the best score is kept between visits (this browser only). */
-export const BEST_KEY = 'ronin-vs-kaiju.best';
+export const BEST_KEY = 'samurai-zero.best';

@@ -1,7 +1,7 @@
-# RONIN VS KAIJU
+# SAMURAI ZERO
 
-A lone ronin duels **Raiju, the thunder kaiju**, in a burning castle town at
-dusk. Three minutes on the clock, three boss phases, one blade.
+A lone samurai — a ronin with nothing left to lose — duels **Raiju, the thunder kaiju**, in a burning castle town at
+dusk. Three minutes on the clock, three boss phases, one blade. Named for the moment after ruin, when a fighter starts from zero.
 
 A make.fun **best-game-01** entry. The game is plain static files — no
 library, no network request, no assets: every sprite is pixel art drawn in
@@ -48,8 +48,8 @@ game/
   src/
     config.js       every tuning number and colour
     random.js       one seeded generator (SplitMix64) for all gameplay chance
-    sprites.js      pixel-art matrices: the ronin, Raiju, lanterns
-    world.js        the rules: ronin, Raiju's boss machine, lightning,
+    sprites.js      pixel-art matrices: the samurai, Raiju, lanterns
+    world.js        the rules: samurai, Raiju's boss machine, lightning,
                     shockwaves, particles, score, the clock
     input.js        named keyboard actions, edges, held state
     audio.js        synthesised SFX + a taiko-and-pluck music loop (Web Audio)
