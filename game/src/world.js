@@ -1,11 +1,12 @@
-// The game's rules and state, with no drawing and no browser in it: the ronin,
-// Raiju's three-phase boss machine, lightning, shockwaves, particles, score and
-// the three-minute clock. step() advances one fixed step and returns what
-// happened as bit flags, so the caller can react (sound, shake, hit-stop)
-// without the world knowing about screens or sound. Nothing here allocates
-// after createWorld returns; every random choice comes from the seeded generator
-// passed in, so the same seed always plays the same fight.
-import { FIELD, RAIJU, RONIN, SCORE, STEP, TIME_LIMIT } from './config.js';
+// The game's rules and state, with no drawing and no browser in it: the
+// samurai, the kaiju boss machine (one of three types, picked at random with
+// equal chance), lightning, shockwaves, particles, score and the three-minute
+// clock. step() advances one fixed step and returns what happened as bit
+// flags, so the caller can react (sound, shake, hit-stop) without the world
+// knowing about screens or sound. Nothing here allocates after createWorld
+// returns; every random choice comes from the seeded generator passed in,
+// so the same seed always plays the same fight.
+import { FIELD, KAIJU_ORDER, KAIJU_TYPES, RAIJU, RONIN, SCORE, STEP, TIME_LIMIT } from './config.js';
 
 export const EVENT_SLASH = 1;
 export const EVENT_HEAVY = 2;
@@ -72,7 +73,21 @@ export function createWorld(random) {
     ronin, raiju, particles, numbers, bolts, waves, projectiles,
     score: 0, timeLeft: TIME_LIMIT, over: false, won: false,
     noHit: true, hits: 0, damageDealt: 0, elapsed: 0, endTimer: 0,
+    /** The match: which samurai the player picked, which kaiju was drawn. */
+    samurai: 'blue', kaiju: 'fire',
   };
+
+  /** One seeded draw over the three kaiju: equal chance, 1/3 each. */
+  function pickKaiju() {
+    return KAIJU_ORDER[Math.floor(random() * KAIJU_ORDER.length)];
+  }
+
+  /** Set the match (player's samurai + the drawn kaiju) and start fresh. */
+  function setMatch(samuraiId, kaijuId) {
+    state.samurai = samuraiId;
+    state.kaiju = kaijuId;
+    reset();
+  }
 
   function reset() {
     ronin.x = 300; ronin.y = FIELD.groundY; ronin.vx = 0; ronin.vy = 0; ronin.facing = 1;
@@ -165,13 +180,26 @@ export function createWorld(random) {
 
   function pickAttack() {
     const dist = Math.abs(raiju.x - ronin.x);
+    const set = KAIJU_TYPES[state.kaiju].attacks;
+    const has = (kind) => set.includes(kind);
     const options = [];
-    if (dist < RAIJU.swipeRange + 40) options.push('swipe', 'swipe');
-    options.push('bolt');
-    if (raiju.phase >= 2) options.push('bolt', 'leap', 'stomp');
-    if (raiju.phase >= 3) options.push('storm', 'bolt', 'leap');
-    if (dist > 500) options.push('bolt', 'leap');
-    options.push('stomp');
+    if (has('swipe') && dist < RAIJU.swipeRange + 40) options.push('swipe', 'swipe');
+    if (has('bolt')) options.push('bolt');
+    if (raiju.phase >= 2) {
+      if (has('bolt')) options.push('bolt');
+      if (has('leap')) options.push('leap');
+      if (has('stomp')) options.push('stomp');
+    }
+    if (raiju.phase >= 3) {
+      if (has('storm')) options.push('storm', 'bolt');
+      if (has('leap')) options.push('leap');
+    }
+    if (dist > 500) {
+      if (has('bolt')) options.push('bolt');
+      if (has('leap')) options.push('leap');
+    }
+    if (has('stomp')) options.push('stomp');
+    if (options.length === 0) options.push(set[0]);
     return options[Math.floor(random() * options.length)];
   }
 
@@ -211,7 +239,7 @@ export function createWorld(random) {
     if (kind === 'swipe') {
       const box = { x: raiju.x - 210, y: raiju.y - 170, width: 210, height: 170 };
       if (overlaps(box, roninBox())) hurtRonin(RAIJU.swipeDamage, ronin.x, ronin.y - 32);
-      burst(raiju.x - 160, raiju.y - 90, 16, 380, 0.5, 3, '#b78bff', 200);
+      burst(raiju.x - 160, raiju.y - 90, 16, 380, 0.5, 3, KAIJU_TYPES[state.kaiju].burst, 200);
     } else if (kind === 'leap') {
       raiju.leaping = true;
       raiju.leapVx = (raiju.targetX - raiju.x) / 0.55;
@@ -225,7 +253,7 @@ export function createWorld(random) {
         w.dir = ronin.x < raiju.x ? -1 : 1;
         w.speed = RAIJU.waveSpeed * RAIJU.speedScale[raiju.phase - 1];
       }
-      burst(raiju.x, FIELD.groundY, 20, 420, 0.6, 4, '#8a7bb0', 500);
+      burst(raiju.x, FIELD.groundY, 20, 420, 0.6, 4, KAIJU_TYPES[state.kaiju].burst, 500);
     }
     raiju.state = 'recover';
     raiju.stateTime = 0;
@@ -243,7 +271,7 @@ export function createWorld(random) {
         raiju.y = FIELD.groundY;
         raiju.leaping = false;
         raiju.bodyDrop = 1;
-        burst(raiju.x, FIELD.groundY, 24, 460, 0.6, 4, '#8a7bb0', 500);
+        burst(raiju.x, FIELD.groundY, 24, 460, 0.6, 4, KAIJU_TYPES[state.kaiju].burst, 500);
         const box = { x: raiju.x - 100, y: FIELD.groundY - 60, width: 200, height: 60 };
         if (overlaps(box, roninBox()) && ronin.onGround) hurtRonin(RAIJU.slamDamage, ronin.x, ronin.y - 32);
         let w = null;
@@ -541,5 +569,5 @@ export function createWorld(random) {
   }
 
   reset();
-  return { state, reset, step };
+  return { state, reset, step, setMatch, pickKaiju };
 }

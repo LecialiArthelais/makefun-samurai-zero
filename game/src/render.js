@@ -1,12 +1,12 @@
 // The canvas renderer: everything the player sees, and nothing the game
 // decides. It draws the Edo dusk (sky, sun, Fuji, town, torii, lanterns,
-// drifting embers), the ronin and Raiju from the pixel sprites, combat
+// drifting embers), the samurai and the kaiju from the pixel sprites, combat
 // feedback (slash arcs, lightning, shockwaves, particles, damage numbers),
-// the HUD, and the title / pause / end screens. Juice lives here too:
-// trauma-based screen shake (game-feel) moves only the camera, never the
-// simulation. The playfield is a fixed 1280x720 logical area, scaled to the
-// window with letterboxing.
-import { FIELD, PALETTE, FONT, RAIJU, RONIN } from './config.js';
+// the HUD, and the title / select / pause / end screens. Juice lives here
+// too: trauma-based screen shake (game-feel) moves only the camera, never
+// the simulation. The playfield is a fixed 1280x720 logical area, scaled to
+// the window with letterboxing.
+import { FIELD, KAIJU_TYPES, PALETTE, FONT, RAIJU, RONIN, SAMURAI_VARIANTS } from './config.js';
 import { drawPixelSprite, drawPixelSpriteAt, SPRITES } from './sprites.js';
 
 function hash(n) {
@@ -293,16 +293,17 @@ export function createRenderer(canvas) {
   // ---------------------------------------------------------- actors
   function roninFrame(state) {
     const r = state.ronin;
-    if (r.pose === 'hurt') return SPRITES.samurai.hurt;
-    if (r.pose === 'slash') return SPRITES.samurai.slash;
-    if (r.pose === 'heavy') return SPRITES.samurai.heavy;
-    if (r.pose === 'jump') return SPRITES.samurai.jump;
+    const set = SPRITES.samurai[state.samurai || 'blue'] || SPRITES.samurai.blue;
+    if (r.pose === 'hurt') return set.hurt;
+    if (r.pose === 'slash') return set.slash;
+    if (r.pose === 'heavy') return set.heavy;
+    if (r.pose === 'jump') return set.jump;
     if (r.pose === 'run') {
       const frame = Math.floor(r.animTime * 10) % 2;
-      return SPRITES.samurai.run[frame];
+      return set.run[frame];
     }
     const frame = Math.floor(r.animTime * 2) % 2;
-    return SPRITES.samurai.idle[frame];
+    return set.idle[frame];
   }
 
   function drawRonin(state, elapsed) {
@@ -340,10 +341,10 @@ export function createRenderer(canvas) {
     if (k.flash > 0) ctx.filter = 'brightness(1.7) saturate(0.6)';
     drawPixelSprite(ctx, frame, k.x, FIELD.groundY + drop - rear + bob, s);
     ctx.restore();
-    // Phase 3 aura: crackling light around the beast.
+    // Phase 3 aura: crackling light around the beast, in its own colour.
     if (k.phase === 3) {
       ctx.globalAlpha = 0.25 + 0.2 * Math.sin(elapsed * 9);
-      ctx.strokeStyle = PALETTE.lightning;
+      ctx.strokeStyle = KAIJU_TYPES[state.kaiju || 'fire'].aura;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(k.x, FIELD.groundY - 100, 170 + Math.sin(elapsed * 5) * 8, 0, Math.PI * 2);
@@ -367,14 +368,15 @@ export function createRenderer(canvas) {
     const startAngle = -Math.PI * 0.7;
     const endAngle = Math.PI * 0.15;
     const angle = startAngle + (endAngle - startAngle) * progress;
+    const fx = SAMURAI_VARIANTS[state.samurai || 'blue'];
     ctx.save();
     ctx.globalAlpha = 0.9 * (1 - progress * 0.6);
-    ctx.strokeStyle = heavy ? PALETTE.lightningCore : PALETTE.steel;
+    ctx.strokeStyle = heavy ? fx.slashCore : fx.slash;
     ctx.lineWidth = heavy ? 7 : 5;
     ctx.beginPath();
     ctx.arc(cx, cy, reach, startAngle, angle);
     ctx.stroke();
-    ctx.strokeStyle = PALETTE.lightning;
+    ctx.strokeStyle = fx.slash;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(cx, cy, reach - 12, startAngle, angle);
@@ -383,13 +385,14 @@ export function createRenderer(canvas) {
   }
 
   function drawBolts(state) {
+    const fx = KAIJU_TYPES[state.kaiju || 'fire'];
     for (const b of state.bolts) {
       if (!b.active) continue;
       if (b.phase === 'mark') {
         // Telegraph: a pulsing danger zone with chevrons.
         const pulse = 0.5 + 0.4 * Math.sin(state.elapsed * 14);
         ctx.globalAlpha = 0.25 + pulse * 0.35;
-        ctx.fillStyle = PALETTE.lightning;
+        ctx.fillStyle = fx.bolt;
         ctx.fillRect(b.x - b.width / 2, FIELD.groundY - 6, b.width, 6);
         ctx.beginPath();
         ctx.moveTo(b.x, FIELD.groundY - 34);
@@ -403,7 +406,7 @@ export function createRenderer(canvas) {
         const segments = 7;
         ctx.save();
         ctx.globalAlpha = 0.85;
-        ctx.strokeStyle = PALETTE.lightning;
+        ctx.strokeStyle = fx.bolt;
         ctx.lineWidth = 6;
         ctx.beginPath();
         let px = b.x;
@@ -413,7 +416,7 @@ export function createRenderer(canvas) {
           ctx.lineTo(px, (i / segments) * FIELD.groundY);
         }
         ctx.stroke();
-        ctx.strokeStyle = PALETTE.lightningCore;
+        ctx.strokeStyle = fx.boltCore;
         ctx.lineWidth = 2;
         ctx.beginPath();
         px = b.x;
@@ -424,20 +427,23 @@ export function createRenderer(canvas) {
         }
         ctx.stroke();
         ctx.restore();
-        ctx.fillStyle = 'rgba(183,139,255,0.25)';
+        ctx.fillStyle = fx.bolt;
+        ctx.globalAlpha = 0.25;
         ctx.fillRect(b.x - b.width / 2, FIELD.groundY - 8, b.width, 8);
+        ctx.globalAlpha = 1;
       }
     }
   }
 
   function drawWaves(state) {
+    const fx = KAIJU_TYPES[state.kaiju || 'fire'];
     for (const w of state.waves) {
       if (!w.active) continue;
-      ctx.fillStyle = PALETTE.kaijuBody;
+      ctx.fillStyle = fx.wave;
       ctx.beginPath();
       ctx.ellipse(w.x, FIELD.groundY - 10, w.width / 2, 26, 0, Math.PI, 0);
       ctx.fill();
-      ctx.fillStyle = PALETTE.lightning;
+      ctx.fillStyle = fx.waveTop;
       ctx.beginPath();
       ctx.ellipse(w.x, FIELD.groundY - 22, w.width / 4, 10, 0, Math.PI, 0);
       ctx.fill();
@@ -445,12 +451,13 @@ export function createRenderer(canvas) {
   }
 
   function drawProjectiles(state) {
+    const fx = SAMURAI_VARIANTS[state.samurai || 'blue'];
     for (const p of state.projectiles) {
       if (!p.active) continue;
-      // Moonlight Wave: a tall blade of light.
+      // The samurai's special: a tall blade of light, in their own colour.
       ctx.save();
       ctx.globalAlpha = 0.95;
-      ctx.fillStyle = PALETTE.lightningCore;
+      ctx.fillStyle = fx.specialCore;
       ctx.beginPath();
       ctx.moveTo(p.x - p.dir * 40, p.y - 70);
       ctx.lineTo(p.x + p.dir * 40, p.y - 40);
@@ -458,7 +465,7 @@ export function createRenderer(canvas) {
       ctx.lineTo(p.x - p.dir * 40, p.y + 70);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = PALETTE.lightning;
+      ctx.fillStyle = fx.special;
       ctx.beginPath();
       ctx.moveTo(p.x - p.dir * 40, p.y - 30);
       ctx.lineTo(p.x + p.dir * 10, p.y);
@@ -503,11 +510,13 @@ export function createRenderer(canvas) {
   function drawHud(state, screen) {
     const r = state.ronin;
     const k = state.raiju;
+    const sam = SAMURAI_VARIANTS[state.samurai || 'blue'];
+    const kai = KAIJU_TYPES[state.kaiju || 'fire'];
     // Samurai portrait + HP + energy (top-left).
     drawPixelSpriteAt(ctx, SPRITES.portraits.hero, 24, 12, 3);
     ctx.fillStyle = PALETTE.text;
     ctx.font = `bold 15px ${FONT}`;
-    ctx.fillText('SAMURAI', 84, 30);
+    ctx.fillText(sam.name, 84, 30);
     drawBar(84, 38, 200, 14, r.hp / RONIN.hp, PALETTE.hpGood, PALETTE.hpWarn, PALETTE.hpBad);
     ctx.font = `13px ${FONT}`;
     ctx.fillText(`${Math.max(0, Math.ceil(r.hp))} / ${RONIN.hp}`, 292, 51);
@@ -518,7 +527,7 @@ export function createRenderer(canvas) {
       ctx.fill();
     }
     ctx.fillStyle = PALETTE.muted;
-    ctx.fillText('MOONLIGHT', 178, 74);
+    ctx.fillText(state.samurai === 'red' ? 'EMBER' : 'MOONLIGHT', 178, 74);
     // Timer + score (top-centre).
     const t = Math.max(0, Math.ceil(state.timeLeft));
     const mm = String(Math.floor(t / 60));
@@ -531,13 +540,13 @@ export function createRenderer(canvas) {
     ctx.fillStyle = PALETTE.text;
     ctx.fillText(`SCORE ${state.score}`, FIELD.width / 2, 68);
     ctx.textAlign = 'left';
-    // Raiju portrait + HP + phase (top-right).
+    // Kaiju portrait + HP + phase (top-right).
     drawPixelSpriteAt(ctx, SPRITES.portraits.kaiju, FIELD.width - 72, 12, 3);
     ctx.textAlign = 'right';
     ctx.font = `bold 15px ${FONT}`;
     ctx.fillStyle = PALETTE.text;
-    ctx.fillText('RAIJU — THUNDER KAIJU', FIELD.width - 84, 30);
-    drawBar(FIELD.width - 284, 38, 200, 14, k.hp / RAIJU.hp, PALETTE.lightning, PALETTE.lightning, PALETTE.hpBad);
+    ctx.fillText(`${kai.name} — ${kai.title.toUpperCase()}`, FIELD.width - 84, 30);
+    drawBar(FIELD.width - 284, 38, 200, 14, k.hp / RAIJU.hp, kai.aura, kai.aura, PALETTE.hpBad);
     ctx.font = `13px ${FONT}`;
     ctx.fillText(`PHASE ${k.phase} / 3`, FIELD.width - 84, 74);
     ctx.textAlign = 'left';
@@ -580,7 +589,7 @@ export function createRenderer(canvas) {
     ctx.shadowBlur = 0;
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `16px ${FONT}`;
-    ctx.fillText('RAIJU, THE THUNDER BEAST, HAS COME FOR THE TOWN.', FIELD.width / 2, 396);
+    ctx.fillText('A KAIJU HAS COME FOR THE TOWN. WHICH ONE, NO ONE KNOWS.', FIELD.width / 2, 396);
     ctx.fillText('THREE MINUTES. THREE PHASES. ONE BLADE.', FIELD.width / 2, 422);
     ctx.fillStyle = PALETTE.text;
     ctx.font = `bold 20px ${FONT}`;
@@ -592,6 +601,54 @@ export function createRenderer(canvas) {
       ctx.fillStyle = PALETTE.spark;
       ctx.fillText(`BEST SCORE ${best}`, FIELD.width / 2, 580);
     }
+    ctx.textAlign = 'left';
+  }
+
+  function drawSelect(state, selection) {
+    ctx.fillStyle = 'rgba(10,6,16,0.45)';
+    ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = PALETTE.sunCore;
+    ctx.font = `bold 44px ${FONT}`;
+    ctx.fillText('SAMURAI ZERO', FIELD.width / 2, 96);
+    ctx.fillStyle = PALETTE.muted;
+    ctx.font = `16px ${FONT}`;
+    ctx.fillText('CHOOSE YOUR SAMURAI', FIELD.width / 2, 132);
+    // Two cards: blue (left) and red (right). The selected one glows.
+    const cards = [
+      { id: 'blue', x: 340, variant: SAMURAI_VARIANTS.blue },
+      { id: 'red', x: 940, variant: SAMURAI_VARIANTS.red },
+    ];
+    for (const card of cards) {
+      const selected = selection === card.id;
+      const cx = card.x;
+      // Card panel.
+      ctx.fillStyle = selected ? 'rgba(60,40,80,0.92)' : 'rgba(20,14,28,0.88)';
+      ctx.fillRect(cx - 190, 190, 380, 330);
+      ctx.strokeStyle = selected ? card.variant.slash : PALETTE.panelEdge;
+      ctx.lineWidth = selected ? 3 : 1;
+      ctx.strokeRect(cx - 190, 190, 380, 330);
+      ctx.lineWidth = 1;
+      // The samurai, large, standing on the card.
+      const set = SPRITES.samurai[card.id];
+      drawPixelSprite(ctx, set.idle[0], cx, 420, 5);
+      // Name + tagline.
+      ctx.fillStyle = PALETTE.text;
+      ctx.font = `bold 26px ${FONT}`;
+      ctx.fillText(card.variant.title.toUpperCase(), cx, 470);
+      ctx.fillStyle = PALETTE.muted;
+      ctx.font = `14px ${FONT}`;
+      ctx.fillText(card.variant.tagline, cx, 498);
+      if (selected) {
+        ctx.fillStyle = card.variant.slash;
+        ctx.font = `bold 16px ${FONT}`;
+        ctx.fillText('▶ SELECTED — PRESS ENTER', cx, 540);
+      }
+    }
+    ctx.fillStyle = PALETTE.muted;
+    ctx.font = `15px ${FONT}`;
+    ctx.fillText('A / D  TO CHOOSE      ENTER  TO FIGHT', FIELD.width / 2, 580);
+    ctx.fillText('THE KAIJU IS DRAWN AT RANDOM — FIRE, SEA OR THE THREE-HEADED DRAGON.', FIELD.width / 2, 612);
     ctx.textAlign = 'left';
   }
 
@@ -648,7 +705,7 @@ export function createRenderer(canvas) {
   }
 
   // ---------------------------------------------------------- frame
-  function render(state, screen, dt, best) {
+  function render(state, screen, dt, best, selection) {
     updateShake(dt);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#0d0916';
@@ -669,6 +726,7 @@ export function createRenderer(canvas) {
     ctx.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
     if (screen === 'play' || screen === 'paused') drawHud(state, screen);
     if (screen === 'title') drawTitle(state, best);
+    if (screen === 'select') drawSelect(state, selection || 'blue');
     if (screen === 'paused') drawPaused();
     if (screen === 'over') drawEnd(state, best);
   }

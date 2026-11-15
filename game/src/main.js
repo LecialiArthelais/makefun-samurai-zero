@@ -1,9 +1,10 @@
 // Boot, the fixed-step loop, screens, and feedback. The world decides the
 // rules; this file decides what the player feels: hit-stop freezes time on
 // impacts, trauma shakes the camera, and every world event gets its sound.
-// Screens: title -> play -> paused -> over. ?shot=title|fight|victory|defeat
-// stages one deterministic scene for a screenshot instead of starting the loop.
-import { BEST_KEY, STEP } from './config.js';
+// Screens: title -> select -> play -> paused -> over. ?shot=title|select|
+// fight|victory|defeat stages one deterministic scene for a screenshot
+// instead of starting the loop.
+import { BEST_KEY, SAMURAI_ORDER, STEP } from './config.js';
 import { createRandom } from './random.js';
 import {
   EVENT_BOLT,
@@ -40,6 +41,9 @@ const input = createInput(canvas, () => {
 
 let screen = 'title';
 let best = 0;
+/** Which samurai is highlighted on the select screen (index into SAMURAI_ORDER). */
+let selection = 0;
+let lastMove = 0;
 try {
   best = Number(window.localStorage.getItem(BEST_KEY) || 0) || 0;
 } catch {
@@ -128,6 +132,15 @@ function startFight() {
   announce('The fight begins. Three minutes on the clock.');
 }
 
+/** The player picked a samurai; the kaiju is drawn at random (1/3 each). */
+function confirmSelection() {
+  const samuraiId = SAMURAI_ORDER[selection];
+  const kaijuId = world.pickKaiju();
+  world.setMatch(samuraiId, kaijuId);
+  audio.sfx.click();
+  startFight();
+}
+
 function endFight() {
   screen = 'over';
   saveBest();
@@ -141,8 +154,8 @@ if (shot) {
   const staged = stageShot(shot, world);
   screen = staged.screen;
   if (staged.screen === 'over') saveBest();
-  renderer.render(world.state, screen, 0, staged.best);
-  renderer.render(world.state, screen, 0, staged.best);
+  renderer.render(world.state, screen, 0, staged.best, staged.selection);
+  renderer.render(world.state, screen, 0, staged.best, staged.selection);
   window.__shotReady = true;
 } else {
   // --- The live loop.
@@ -164,11 +177,22 @@ if (shot) {
     if (screen === 'title') {
       if (inputState.confirm) {
         audio.sfx.click();
-        startFight();
+        screen = 'select';
+        announce('Choose your samurai. A or D to choose, Enter to fight.');
       } else {
         // The title scene breathes: the duelists stand off, embers drift.
         world.state.elapsed += dtReal;
       }
+    } else if (screen === 'select') {
+      // A/D switches the highlighted samurai (edge only — holding a key
+      // must not flip the choice every frame).
+      if (inputState.move !== 0 && inputState.move !== lastMove) {
+        selection = (selection + (inputState.move > 0 ? 1 : SAMURAI_ORDER.length - 1)) % SAMURAI_ORDER.length;
+        audio.sfx.click();
+      }
+      lastMove = inputState.move;
+      if (inputState.confirm) confirmSelection();
+      else world.state.elapsed += dtReal;
     } else if (screen === 'play') {
       if (inputState.pause) {
         screen = 'paused';
@@ -205,10 +229,10 @@ if (shot) {
       }
     }
 
-    renderer.render(world.state, screen, dtReal, best);
+    renderer.render(world.state, screen, dtReal, best, SAMURAI_ORDER[selection]);
     window.requestAnimationFrame(frame);
   }
 
-  announce('Samurai Zero. Press Enter to fight.');
+  announce('Samurai Zero. Press Enter to choose your samurai.');
   window.requestAnimationFrame(frame);
 }

@@ -40,6 +40,7 @@ export const PALETTE = {
   Z: '#fff3a0', // lightning crackle
   I: '#b39ddb', // kaiju body highlight (lighter violet top)
   V: '#33204f', // kaiju deep shadow
+  a: '#8a2a1a', // red samurai cloth shadow / hakama (dark red)
 };
 
 /** Draw one matrix sprite centred on (cx, cy) at the given pixel scale. */
@@ -597,14 +598,35 @@ export const LANTERN = [
   '...K..',
 ];
 
+/** Recolour a samurai pose set through a key->key map (for the variants). */
+function recolorSamurai(set, map) {
+  const recolor = (frame) => frame.map((row) => [...row].map((ch) => map[ch] || ch).join(''));
+  return {
+    idle: set.idle.map(recolor),
+    run: set.run.map(recolor),
+    jump: recolor(set.jump),
+    slash: recolor(set.slash),
+    heavy: recolor(set.heavy),
+    hurt: recolor(set.hurt),
+  };
+}
+
+const SAMURAI_BLUE = {
+  idle: [SAMURAI_IDLE_A, SAMURAI_IDLE_B],
+  run: [SAMURAI_RUN_A, SAMURAI_RUN_B],
+  jump: SAMURAI_JUMP,
+  slash: SAMURAI_SLASH,
+  heavy: SAMURAI_HEAVY,
+  hurt: SAMURAI_HURT,
+};
+
+/** AKA (red): indigo cloth -> bright red, shadows/hakama -> dark red, sash -> gold. */
+const SAMURAI_RED = recolorSamurai(SAMURAI_BLUE, { B: 'A', D: 'a', Q: 'a', A: 'X' });
+
 export const SPRITES = {
   samurai: {
-    idle: [SAMURAI_IDLE_A, SAMURAI_IDLE_B],
-    run: [SAMURAI_RUN_A, SAMURAI_RUN_B],
-    jump: SAMURAI_JUMP,
-    slash: SAMURAI_SLASH,
-    heavy: SAMURAI_HEAVY,
-    hurt: SAMURAI_HURT,
+    blue: SAMURAI_BLUE,
+    red: SAMURAI_RED,
   },
   raiju: {
     closed: RAIJU_CLOSED,

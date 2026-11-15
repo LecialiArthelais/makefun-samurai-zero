@@ -1,9 +1,11 @@
-// The screenshot scenes behind ?shot=title|fight|victory|defeat. Each one plays
-// the real rules forward from a fresh world, steered by a simple autopilot, so
-// the frame is what a real game looks like and the same seed always gives the
-// same frame. The fight pilot is the one from the balance tests: it closes in
-// while Raiju rests, slashes, and backs off when the storm telegraphs. The
-// defeat pilot stands still, as a hurried player does.
+// The screenshot scenes behind ?shot=title|select|fight|victory|defeat. Each
+// one plays the real rules forward from a fresh world, steered by a simple
+// autopilot, so the frame is what a real game looks like and the same seed
+// always gives the same frame. The fight pilot is the one from the balance
+// tests: it closes in while Raiju rests, slashes, and backs off when the
+// storm telegraphs. The defeat pilot stands still, as a hurried player does.
+// The four gameplay shots showcase the whole roster: the fight is blue vs
+// fire, the victory is red vs sea, the defeat is blue vs the dragon.
 import { STEP } from './config.js';
 import { EVENT_LOSE, EVENT_RAIJU_HIT, EVENT_WIN } from './world.js';
 
@@ -48,7 +50,14 @@ export function createAutopilot() {
  */
 export function stageShot(name, world) {
   world.reset();
+  if (name === 'select') {
+    // The select screen, blue highlighted, the duelists standing off.
+    const idle = { move: 0, jump: false, slash: false, heavy: false, special: false, dash: false };
+    for (let index = 0; index < TITLE_SECONDS / STEP; index += 1) world.step(STEP, idle);
+    return { screen: 'select', best: 0, selection: 'blue' };
+  }
   if (name === 'fight') {
+    world.setMatch('blue', 'fire');
     const pilot = createAutopilot();
     let events = 0;
     for (let index = 0; index < FIGHT_MAX_SECONDS / STEP; index += 1) {
@@ -66,6 +75,7 @@ export function stageShot(name, world) {
     return { screen: world.state.over ? 'over' : 'play', best: world.state.score };
   }
   if (name === 'victory') {
+    world.setMatch('red', 'sea');
     const pilot = createAutopilot();
     for (let index = 0; index < LIMIT_SECONDS / STEP; index += 1) {
       const events = world.step(STEP, pilot(world.state));
@@ -75,6 +85,7 @@ export function stageShot(name, world) {
     return { screen: 'over', best: world.state.score };
   }
   if (name === 'defeat') {
+    world.setMatch('blue', 'dragon');
     const idle = { move: 0, jump: false, slash: false, heavy: false, special: false, dash: false };
     for (let index = 0; index < LIMIT_SECONDS / STEP; index += 1) {
       const events = world.step(STEP, idle);

@@ -43,6 +43,56 @@ export const RONIN = {
   maxCells: 3,
 };
 
+/** The two playable samurai. Same moveset, different theme — the player
+ * picks one on the select screen. `fx` colours the slash arc and the
+ * special projectile; `cloth`/`dark` are the sprite palette keys used by
+ * the variant (see sprites.js). */
+export const SAMURAI_VARIANTS = {
+  blue: {
+    id: 'blue', name: 'AO', title: 'Samurai Biru',
+    tagline: 'Tenang seperti bulan, tebasan cahaya.',
+    slash: '#8ef1ff', slashCore: '#f3f7ff', special: '#8ef1ff', specialCore: '#f2e9ff',
+  },
+  red: {
+    id: 'red', name: 'AKA', title: 'Samurai Merah',
+    tagline: 'Membara seperti api, tebasan bara.',
+    slash: '#ff9e45', slashCore: '#ffd94a', special: '#ff7a2a', specialCore: '#ffd94a',
+  },
+};
+export const SAMURAI_ORDER = ['blue', 'red'];
+
+/** The three kaiju bosses. The fight picks one at random, equal chance
+ * (1/3 each). Each has its own attack set, drawn from the shared boss
+ * mechanics: swipe = claw/bite (melee), bolt = ranged projectile
+ * (fireball / wind gust), storm = ranged barrage (phase 3),
+ * leap = charging ram/slam, stomp = ground shockwave (tsunami).
+ * `fx` colours the boss's bolts, waves, aura and impact bursts. */
+export const KAIJU_TYPES = {
+  fire: {
+    id: 'fire', name: 'KAGUTSUCHI', title: 'Kaiju Api',
+    tagline: 'Lava mengalir di tubuhnya — cakaran dan bola api.',
+    attacks: ['swipe', 'bolt', 'storm'],
+    eye: '#ff7a2a', bolt: '#ff7a2a', boltCore: '#ffd94a',
+    aura: '#ff7a2a', wave: '#b23a2e', waveTop: '#ff9e45', burst: '#ff9a3d',
+  },
+  sea: {
+    id: 'sea', name: 'UMIBOZU', title: 'Kaiju Laut',
+    tagline: 'Raksasa dari laut dalam — serudukan dan tsunami.',
+    attacks: ['swipe', 'leap', 'stomp'],
+    eye: '#7ec8ff', bolt: '#7ec8ff', boltCore: '#f3f7ff',
+    aura: '#7ec8ff', wave: '#2f6fb2', waveTop: '#7ec8ff', burst: '#7ec8ff',
+  },
+  dragon: {
+    id: 'dragon', name: 'SANRYU', title: 'Naga Kepala 3',
+    tagline: 'Tiga kepala, sayap badai — gigitan dan angin topan.',
+    attacks: ['swipe', 'bolt', 'storm'],
+    eye: '#ffd94a', bolt: '#b8d8ff', boltCore: '#f3f7ff',
+    aura: '#ffd94a', wave: '#b39ddb', waveTop: '#f2e9ff', burst: '#ffd94a',
+  },
+};
+/** Equal-chance order: the boss is picked by one seeded random draw. */
+export const KAIJU_ORDER = ['fire', 'sea', 'dragon'];
+
 export const RAIJU = {
   width: 260,
   height: 210,
