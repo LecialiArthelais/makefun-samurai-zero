@@ -14,7 +14,7 @@ function hash(n) {
   return s - Math.floor(s);
 }
 
-export function createRenderer(canvas) {
+export function createRenderer(canvas, assets) {
   const ctx = canvas.getContext('2d');
   let trauma = 0;
   let shakeTime = 0;
@@ -47,6 +47,41 @@ export function createRenderer(canvas) {
       x: 12 * s * Math.sin(shakeTime * 1.7),
       y: 8 * s * Math.sin(shakeTime * 2.3),
     };
+  }
+
+  // ---------------------------------------------------------- raster art
+  // Draw a raster asset centred on (cx, bottomY) at the given height,
+  // preserving its aspect ratio. Smoothing is ON for raster art (the pixel
+  // sprites keep it off), and the call restores it, so the two styles never
+  // leak into each other. `flip` mirrors the image (the art faces right);
+  // `tilt` rotates it around its centre, in radians; `alpha` fades it.
+  // Returns false when the image is not loaded (the caller falls back).
+  function drawRaster(img, cx, bottomY, height, { flip = false, tilt = 0, alpha = 1, filter = '' } = {}) {
+    if (!img || !img.naturalWidth) return false;
+    const w = (height * img.naturalWidth) / img.naturalHeight;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (filter) ctx.filter = filter;
+    ctx.imageSmoothingEnabled = true;
+    ctx.translate(cx, bottomY - height / 2);
+    if (tilt) ctx.rotate(tilt);
+    if (flip) ctx.scale(-1, 1);
+    ctx.drawImage(img, -w / 2, -height / 2, w, height);
+    ctx.restore();
+    ctx.imageSmoothingEnabled = false;
+    return true;
+  }
+
+  // The raster hero for the picked samurai, or null when it did not load.
+  function heroImage(state) {
+    if (!assets) return null;
+    return state.samurai === 'red' ? assets.samuraiRed : assets.samuraiBlue;
+  }
+
+  // The raster HUD portrait for the picked samurai, or null.
+  function heroPortrait(state) {
+    if (!assets) return null;
+    return state.samurai === 'red' ? assets.portraitRed : assets.portraitBlue;
   }
 
   // ---------------------------------------------------------- background
@@ -308,18 +343,42 @@ export function createRenderer(canvas) {
 
   function drawRonin(state, elapsed) {
     const r = state.ronin;
-    const scale = 4;
-    ctx.save();
     // Invulnerability: the ronin goes ghostly, never invisible — the hero
     // must always read, even in a screenshot.
-    if (r.invulnerable > 0 && Math.floor(elapsed * 14) % 2 === 0) ctx.globalAlpha = 0.45;
-    if (r.facing < 0) {
-      ctx.translate(r.x, 0);
-      ctx.scale(-1, 1);
-      ctx.translate(-r.x, 0);
+    const ghost = r.invulnerable > 0 && Math.floor(elapsed * 14) % 2 === 0;
+    const img = heroImage(state);
+    if (img) {
+      // One static raster portrait, so the pose reads through motion: a
+      // gentle idle bob, a forward lean while running, a deep lean into the
+      // slash and the heavy iaido draw, and a white-hot flash when hurt.
+      let bob = Math.sin(elapsed * 2) * 2;
+      let tilt = 0;
+      let filter = '';
+      if (r.pose === 'run') {
+        tilt = 0.08 * r.facing;
+        bob = Math.sin(elapsed * 14) * 3;
+      } else if (r.pose === 'slash') tilt = 0.16 * r.facing;
+      else if (r.pose === 'heavy') tilt = 0.22 * r.facing;
+      else if (r.pose === 'hurt') filter = 'brightness(1.7) saturate(0.6)';
+      drawRaster(img, r.x, r.y + bob, 200, {
+        flip: r.facing < 0,
+        tilt,
+        alpha: ghost ? 0.45 : 1,
+        filter,
+      });
+    } else {
+      // Asset missing: the code-drawn pixel sprite, as before.
+      const scale = 4;
+      ctx.save();
+      if (ghost) ctx.globalAlpha = 0.45;
+      if (r.facing < 0) {
+        ctx.translate(r.x, 0);
+        ctx.scale(-1, 1);
+        ctx.translate(-r.x, 0);
+      }
+      drawPixelSprite(ctx, roninFrame(state), r.x, r.y, scale);
+      ctx.restore();
     }
-    drawPixelSprite(ctx, roninFrame(state), r.x, r.y, scale);
-    ctx.restore();
     // Shadow.
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.fillRect(r.x - 52, FIELD.groundY - 2, 104, 5);
@@ -365,12 +424,33 @@ export function createRenderer(canvas) {
     const cx = r.x + r.facing * (reach * 0.55);
     const cy = r.y - 88;
     const progress = 1 - r.poseTime / (heavy ? 0.32 : 0.18);
+    const alpha = 0.9 * (1 - progress * 0.6);
+    // The raster effects: the blue slash arc for a katana slash, the
+    // lightning bolt for the heavy iaido draw (a lightning-charged strike).
+    if (assets) {
+      if (heavy && assets.fxLightning) {
+        drawRaster(assets.fxLightning, cx, cy + 56, 113, {
+          flip: r.facing < 0,
+          tilt: -0.25 * r.facing,
+          alpha,
+        });
+        return;
+      }
+      if (!heavy && assets.fxSlash) {
+        drawRaster(assets.fxSlash, cx, cy + 62, 124, {
+          flip: r.facing < 0,
+          alpha,
+        });
+        return;
+      }
+    }
+    // Asset missing: the code-drawn arc, as before.
     const startAngle = -Math.PI * 0.7;
     const endAngle = Math.PI * 0.15;
     const angle = startAngle + (endAngle - startAngle) * progress;
     const fx = SAMURAI_VARIANTS[state.samurai || 'blue'];
     ctx.save();
-    ctx.globalAlpha = 0.9 * (1 - progress * 0.6);
+    ctx.globalAlpha = alpha;
     ctx.strokeStyle = heavy ? fx.slashCore : fx.slash;
     ctx.lineWidth = heavy ? 7 : 5;
     ctx.beginPath();
@@ -382,6 +462,18 @@ export function createRenderer(canvas) {
     ctx.arc(cx, cy, reach - 12, startAngle, angle);
     ctx.stroke();
     ctx.restore();
+  }
+
+  // The dash ghost: speed lines and a blurred silhouette, drawn behind the
+  // hero while the dash is active. The raster silhouette sits slightly
+  // ahead of the hero, in the dash direction.
+  function drawDash(state) {
+    const r = state.ronin;
+    if (r.dashTimer <= 0 || !assets || !assets.fxDash) return;
+    drawRaster(assets.fxDash, r.x + r.facing * 30, r.y - 10, 146, {
+      flip: r.facing < 0,
+      alpha: 0.9,
+    });
   }
 
   function drawBolts(state) {
@@ -451,10 +543,20 @@ export function createRenderer(canvas) {
   }
 
   function drawProjectiles(state) {
-    const fx = SAMURAI_VARIANTS[state.samurai || 'blue'];
     for (const p of state.projectiles) {
       if (!p.active) continue;
-      // The samurai's special: a tall blade of light, in their own colour.
+      // The samurai's special: a fireball, head-first in its travel
+      // direction. The raster head sits on the right, so it flips when the
+      // projectile flies left.
+      if (assets && assets.fxFireball) {
+        drawRaster(assets.fxFireball, p.x, p.y + 40, 81, {
+          flip: p.dir < 0,
+          alpha: 0.95,
+        });
+        continue;
+      }
+      // Asset missing: the code-drawn blade of light, as before.
+      const fx = SAMURAI_VARIANTS[state.samurai || 'blue'];
       ctx.save();
       ctx.globalAlpha = 0.95;
       ctx.fillStyle = fx.specialCore;
@@ -512,8 +614,19 @@ export function createRenderer(canvas) {
     const k = state.raiju;
     const sam = SAMURAI_VARIANTS[state.samurai || 'blue'];
     const kai = KAIJU_TYPES[state.kaiju || 'fire'];
-    // Samurai portrait + HP + energy (top-left).
-    drawPixelSpriteAt(ctx, SPRITES.portraits.hero, 24, 12, 3);
+    // Samurai portrait + HP + energy (top-left). The raster portrait when
+    // it loaded, the code-drawn one otherwise.
+    const portrait = heroPortrait(state);
+    if (portrait) {
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(22, 10, 52, 52);
+      ctx.strokeStyle = PALETTE.panelEdge;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(22, 10, 52, 52);
+      drawRaster(portrait, 48, 60, 48);
+    } else {
+      drawPixelSpriteAt(ctx, SPRITES.portraits.hero, 24, 12, 3);
+    }
     ctx.fillStyle = PALETTE.text;
     ctx.font = `bold 15px ${FONT}`;
     ctx.fillText(sam.name, 84, 30);
@@ -556,7 +669,7 @@ export function createRenderer(canvas) {
       ctx.fillStyle = PALETTE.muted;
       ctx.font = `14px ${FONT}`;
       ctx.textAlign = 'center';
-      ctx.fillText('A/D MOVE   SPACE JUMP   J SLASH   K HEAVY   L MOONLIGHT   SHIFT DASH', FIELD.width / 2, FIELD.height - 16);
+      ctx.fillText('A/D MOVE   SPACE JUMP   J SLASH   K HEAVY   L FIREBALL   SHIFT DASH', FIELD.width / 2, FIELD.height - 16);
       ctx.textAlign = 'left';
       ctx.globalAlpha = 1;
     }
@@ -596,7 +709,7 @@ export function createRenderer(canvas) {
     ctx.fillText('PRESS ENTER TO FIGHT', FIELD.width / 2, 492);
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `15px ${FONT}`;
-    ctx.fillText('A/D MOVE    SPACE JUMP    J SLASH    K HEAVY    L MOONLIGHT    SHIFT DASH    ESC PAUSE', FIELD.width / 2, 544);
+    ctx.fillText('A/D MOVE    SPACE JUMP    J SLASH    K HEAVY    L FIREBALL    SHIFT DASH    ESC PAUSE', FIELD.width / 2, 544);
     if (best > 0) {
       ctx.fillStyle = PALETTE.spark;
       ctx.fillText(`BEST SCORE ${best}`, FIELD.width / 2, 580);
@@ -629,9 +742,14 @@ export function createRenderer(canvas) {
       ctx.lineWidth = selected ? 3 : 1;
       ctx.strokeRect(cx - 190, 190, 380, 330);
       ctx.lineWidth = 1;
-      // The samurai, large, standing on the card.
-      const set = SPRITES.samurai[card.id];
-      drawPixelSprite(ctx, set.idle[0], cx, 420, 5);
+      // The samurai, large, standing on the card — the raster art when it
+      // loaded, the code-drawn sprite otherwise.
+      const img = assets && (card.id === 'red' ? assets.samuraiRed : assets.samuraiBlue);
+      if (img) drawRaster(img, cx, 420, 210);
+      else {
+        const set = SPRITES.samurai[card.id];
+        drawPixelSprite(ctx, set.idle[0], cx, 420, 5);
+      }
       // Name + tagline.
       ctx.fillStyle = PALETTE.text;
       ctx.font = `bold 26px ${FONT}`;
@@ -715,6 +833,7 @@ export function createRenderer(canvas) {
     ctx.imageSmoothingEnabled = false;
     drawBackground(state.elapsed);
     drawRaiju(state, state.elapsed);
+    drawDash(state);
     drawRonin(state, state.elapsed);
     drawSlashArc(state);
     drawBolts(state);

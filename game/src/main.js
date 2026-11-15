@@ -23,7 +23,13 @@ import {
 import { createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createRenderer } from './render.js';
+import { loadAssets } from './assets.js';
 import { stageShot } from './shots.js';
+
+// The raster art (samurai, portraits, attack effects) loads before the
+// first frame, so a screenshot never catches a half-loaded hero. A missing
+// file resolves to null and the renderer falls back to pixel art.
+const assets = await loadAssets();
 
 const canvas = document.getElementById('game');
 const statusEl = document.getElementById('status');
@@ -32,7 +38,7 @@ const seed = Number(params.get('seed') || 1) || 1;
 const shot = params.get('shot');
 
 const world = createWorld(createRandom(seed));
-const renderer = createRenderer(canvas);
+const renderer = createRenderer(canvas, assets);
 const audio = createAudio();
 const input = createInput(canvas, () => {
   audio.ensure();

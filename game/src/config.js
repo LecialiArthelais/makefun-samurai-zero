@@ -49,13 +49,13 @@ export const RONIN = {
  * the variant (see sprites.js). */
 export const SAMURAI_VARIANTS = {
   blue: {
-    id: 'blue', name: 'AO', title: 'Samurai Biru',
-    tagline: 'Tenang seperti bulan, tebasan cahaya.',
+    id: 'blue', name: 'AO', title: 'Blue Samurai',
+    tagline: 'Calm as the moon, a blade of light.',
     slash: '#8ef1ff', slashCore: '#f3f7ff', special: '#8ef1ff', specialCore: '#f2e9ff',
   },
   red: {
-    id: 'red', name: 'AKA', title: 'Samurai Merah',
-    tagline: 'Membara seperti api, tebasan bara.',
+    id: 'red', name: 'AKA', title: 'Red Samurai',
+    tagline: 'Burning like fire, a blade of embers.',
     slash: '#ff9e45', slashCore: '#ffd94a', special: '#ff7a2a', specialCore: '#ffd94a',
   },
 };
@@ -69,22 +69,22 @@ export const SAMURAI_ORDER = ['blue', 'red'];
  * `fx` colours the boss's bolts, waves, aura and impact bursts. */
 export const KAIJU_TYPES = {
   fire: {
-    id: 'fire', name: 'KAGUTSUCHI', title: 'Kaiju Api',
-    tagline: 'Lava mengalir di tubuhnya — cakaran dan bola api.',
+    id: 'fire', name: 'KAGUTSUCHI', title: 'Fire Kaiju',
+    tagline: 'Lava runs through it — claws and fireballs.',
     attacks: ['swipe', 'bolt', 'storm'],
     eye: '#ff7a2a', bolt: '#ff7a2a', boltCore: '#ffd94a',
     aura: '#ff7a2a', wave: '#b23a2e', waveTop: '#ff9e45', burst: '#ff9a3d',
   },
   sea: {
-    id: 'sea', name: 'UMIBOZU', title: 'Kaiju Laut',
-    tagline: 'Raksasa dari laut dalam — serudukan dan tsunami.',
+    id: 'sea', name: 'UMIBOZU', title: 'Sea Kaiju',
+    tagline: 'A giant from the deep — rams and tsunamis.',
     attacks: ['swipe', 'leap', 'stomp'],
     eye: '#7ec8ff', bolt: '#7ec8ff', boltCore: '#f3f7ff',
     aura: '#7ec8ff', wave: '#2f6fb2', waveTop: '#7ec8ff', burst: '#7ec8ff',
   },
   dragon: {
-    id: 'dragon', name: 'SANRYU', title: 'Naga Kepala 3',
-    tagline: 'Tiga kepala, sayap badai — gigitan dan angin topan.',
+    id: 'dragon', name: 'SANRYU', title: 'Three-Headed Dragon',
+    tagline: 'Three heads, storm wings — bites and gales.',
     attacks: ['swipe', 'bolt', 'storm'],
     eye: '#ffd94a', bolt: '#b8d8ff', boltCore: '#f3f7ff',
     aura: '#ffd94a', wave: '#b39ddb', waveTop: '#f2e9ff', burst: '#ffd94a',
