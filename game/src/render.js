@@ -293,16 +293,16 @@ export function createRenderer(canvas) {
   // ---------------------------------------------------------- actors
   function roninFrame(state) {
     const r = state.ronin;
-    if (r.pose === 'hurt') return SPRITES.ronin.hurt;
-    if (r.pose === 'slash') return SPRITES.ronin.slash;
-    if (r.pose === 'heavy') return SPRITES.ronin.heavy;
-    if (r.pose === 'jump') return SPRITES.ronin.jump;
+    if (r.pose === 'hurt') return SPRITES.samurai.hurt;
+    if (r.pose === 'slash') return SPRITES.samurai.slash;
+    if (r.pose === 'heavy') return SPRITES.samurai.heavy;
+    if (r.pose === 'jump') return SPRITES.samurai.jump;
     if (r.pose === 'run') {
       const frame = Math.floor(r.animTime * 10) % 2;
-      return SPRITES.ronin.run[frame];
+      return SPRITES.samurai.run[frame];
     }
     const frame = Math.floor(r.animTime * 2) % 2;
-    return SPRITES.ronin.idle[frame];
+    return SPRITES.samurai.idle[frame];
   }
 
   function drawRonin(state, elapsed) {
@@ -321,17 +321,17 @@ export function createRenderer(canvas) {
     ctx.restore();
     // Shadow.
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(r.x - 26, FIELD.groundY - 2, 52, 5);
+    ctx.fillRect(r.x - 52, FIELD.groundY - 2, 104, 5);
   }
 
   function drawRaiju(state, elapsed) {
     const k = state.raiju;
     if (state.over && state.won) return; // felled: the storm is gone.
-    // One connected silhouette, 216x156 at scale 6. The beast rears (lifts)
+    // One connected silhouette, 280x200 at scale 5. The beast rears (lifts)
     // during the telegraph and drops on the stomp; the maw opens to strike.
-    const s = 6;
-    const rear = k.headRear * 22;
-    const drop = k.bodyDrop * 14;
+    const s = 5;
+    const rear = k.headRear * 28;
+    const drop = k.bodyDrop * 18;
     const bob = Math.sin(elapsed * 2.2) * 3;
     const frame = (k.state === 'telegraph' && (k.attack === 'swipe' || k.attack === 'leap')) || k.state === 'recover'
       ? SPRITES.raiju.open
@@ -346,13 +346,13 @@ export function createRenderer(canvas) {
       ctx.strokeStyle = PALETTE.lightning;
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(k.x, FIELD.groundY - 80, 150 + Math.sin(elapsed * 5) * 8, 0, Math.PI * 2);
+      ctx.arc(k.x, FIELD.groundY - 100, 170 + Math.sin(elapsed * 5) * 8, 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
     // Shadow.
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.fillRect(k.x - 110, FIELD.groundY - 2, 220, 6);
+    ctx.fillRect(k.x - 112, FIELD.groundY - 2, 224, 6);
   }
 
   // ---------------------------------------------------------- effects
@@ -360,9 +360,9 @@ export function createRenderer(canvas) {
     const r = state.ronin;
     if (r.pose !== 'slash' && r.pose !== 'heavy') return;
     const heavy = r.pose === 'heavy';
-    const reach = heavy ? 120 : 84;
+    const reach = heavy ? 140 : 100;
     const cx = r.x + r.facing * (reach * 0.55);
-    const cy = r.y - 52;
+    const cy = r.y - 88;
     const progress = 1 - r.poseTime / (heavy ? 0.32 : 0.18);
     const startAngle = -Math.PI * 0.7;
     const endAngle = Math.PI * 0.15;
@@ -503,21 +503,22 @@ export function createRenderer(canvas) {
   function drawHud(state, screen) {
     const r = state.ronin;
     const k = state.raiju;
-    // Samurai HP + energy (top-left).
+    // Samurai portrait + HP + energy (top-left).
+    drawPixelSpriteAt(ctx, SPRITES.portraits.hero, 24, 12, 3);
     ctx.fillStyle = PALETTE.text;
     ctx.font = `bold 15px ${FONT}`;
-    ctx.fillText('SAMURAI', 24, 30);
-    drawBar(24, 38, 220, 14, r.hp / RONIN.hp, PALETTE.hpGood, PALETTE.hpWarn, PALETTE.hpBad);
+    ctx.fillText('SAMURAI', 84, 30);
+    drawBar(84, 38, 200, 14, r.hp / RONIN.hp, PALETTE.hpGood, PALETTE.hpWarn, PALETTE.hpBad);
     ctx.font = `13px ${FONT}`;
-    ctx.fillText(`${Math.max(0, Math.ceil(r.hp))} / ${RONIN.hp}`, 252, 51);
+    ctx.fillText(`${Math.max(0, Math.ceil(r.hp))} / ${RONIN.hp}`, 292, 51);
     for (let i = 0; i < RONIN.maxCells; i += 1) {
       ctx.fillStyle = i < r.energy ? PALETTE.energy : 'rgba(126,200,255,0.25)';
       ctx.beginPath();
-      ctx.arc(36 + i * 26, 70, 8, 0, Math.PI * 2);
+      ctx.arc(96 + i * 26, 70, 8, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.fillStyle = PALETTE.muted;
-    ctx.fillText('MOONLIGHT', 118, 74);
+    ctx.fillText('MOONLIGHT', 178, 74);
     // Timer + score (top-centre).
     const t = Math.max(0, Math.ceil(state.timeLeft));
     const mm = String(Math.floor(t / 60));
@@ -530,14 +531,15 @@ export function createRenderer(canvas) {
     ctx.fillStyle = PALETTE.text;
     ctx.fillText(`SCORE ${state.score}`, FIELD.width / 2, 68);
     ctx.textAlign = 'left';
-    // Raiju HP + phase (top-right).
+    // Raiju portrait + HP + phase (top-right).
+    drawPixelSpriteAt(ctx, SPRITES.portraits.kaiju, FIELD.width - 72, 12, 3);
     ctx.textAlign = 'right';
     ctx.font = `bold 15px ${FONT}`;
     ctx.fillStyle = PALETTE.text;
-    ctx.fillText('RAIJU — THUNDER KAIJU', FIELD.width - 24, 30);
-    drawBar(FIELD.width - 244, 38, 220, 14, k.hp / RAIJU.hp, PALETTE.lightning, PALETTE.lightning, PALETTE.hpBad);
+    ctx.fillText('RAIJU — THUNDER KAIJU', FIELD.width - 84, 30);
+    drawBar(FIELD.width - 284, 38, 200, 14, k.hp / RAIJU.hp, PALETTE.lightning, PALETTE.lightning, PALETTE.hpBad);
     ctx.font = `13px ${FONT}`;
-    ctx.fillText(`PHASE ${k.phase} / 3`, FIELD.width - 24, 74);
+    ctx.fillText(`PHASE ${k.phase} / 3`, FIELD.width - 84, 74);
     ctx.textAlign = 'left';
     // Controls hint, early in the fight.
     if (screen === 'play' && state.elapsed < 6) {

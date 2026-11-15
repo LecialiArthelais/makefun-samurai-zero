@@ -46,10 +46,10 @@ export const RONIN = {
 export const RAIJU = {
   width: 260,
   height: 210,
-  hp: 1050,
-  /** Phase lines: below 700 the storm quickens, below 350 it rages. */
-  phase2At: 700,
-  phase3At: 350,
+  hp: 1200,
+  /** Phase lines: below 800 the storm quickens, below 400 it rages. */
+  phase2At: 800,
+  phase3At: 400,
   /** Claw swipe: melee range, telegraph, damage. */
   swipeDamage: 12,
   swipeRange: 190,
