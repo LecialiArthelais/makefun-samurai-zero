@@ -1,5 +1,9 @@
 # SAMURAI ZERO
 
+[![make.fun · best-game-01](https://make.fun/badge/best-game-01.svg)](https://make.fun/bounty/best-game-01?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
+[![rank](https://make.fun/badge/best-game-01/LecialiArthelais/makefun-samurai-zero/rank.svg)](https://make.fun/bounty/best-game-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
+[![reward](https://make.fun/badge/best-game-01/LecialiArthelais/makefun-samurai-zero/reward.svg)](https://make.fun/bounty/best-game-01?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
+
 A lone samurai — a ronin with nothing left to lose — duels **a kaiju**, in a burning castle town at
 dusk. Three minutes on the clock, three boss phases, one blade. Named for the moment after ruin, when a fighter starts from zero.
 
