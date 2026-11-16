@@ -74,6 +74,54 @@ export function stageShot(name, world) {
     }
     return { screen: world.state.over ? 'over' : 'play', best: world.state.score };
   }
+  if (name === 'fireball') {
+    // The cover shot: Enjin (red) hurls his fireball at SANRYU, the
+    // three-headed dragon. The autopilot fights until Enjin has a full
+    // energy cell, then he backs away to open range and fires — so the
+    // fireball has a long flight and the frame catches it mid-screen,
+    // clearly separated from both the samurai and the dragon.
+    world.setMatch('red', 'dragon');
+    const auto = createAutopilot();
+    let phase = 'fight';
+    const pilot = (state) => {
+      const r = state.ronin;
+      const k = state.raiju;
+      const dist = Math.abs(k.x - r.x);
+      if (phase === 'fight') {
+        if (r.energy >= 1) phase = 'retreat';
+        return auto(state);
+      }
+      if (phase === 'retreat') {
+        if (dist > 420) {
+          phase = 'fire';
+          return { move: 0, jump: false, slash: false, heavy: false, special: true, dash: false };
+        }
+        const away = k.x > r.x ? -1 : 1;
+        return { move: away, jump: false, slash: false, heavy: false, special: false, dash: false };
+      }
+      return { move: 0, jump: false, slash: false, heavy: false, special: true, dash: false };
+    };
+    const idle = { move: 0, jump: false, slash: false, heavy: false, special: false, dash: false };
+    for (let index = 0; index < LIMIT_SECONDS / STEP; index += 1) {
+      world.step(STEP, pilot(world.state));
+      const proj = world.state.projectiles.find((p) => p.active);
+      if (proj) {
+        // The fireball flies at 1150 px/s (~19.2 px/frame) and dies on the
+        // dragon's hitbox (100 px either side of his centre). Step to the
+        // midpoint of the remaining flight so it sits between the two.
+        const dist = Math.abs(world.state.raiju.x - world.state.ronin.x);
+        const framesToHit = Math.max(0, (dist - 150) / 19.2);
+        const mid = Math.max(3, Math.min(12, Math.floor(framesToHit / 2)));
+        for (let j = 0; j < mid; j += 1) {
+          world.step(STEP, idle);
+          if (!world.state.projectiles.find((p) => p.active)) break;
+        }
+        break;
+      }
+      if (world.state.over) break;
+    }
+    return { screen: 'play', best: world.state.score };
+  }
   if (name === 'victory') {
     world.setMatch('red', 'sea');
     const pilot = createAutopilot();

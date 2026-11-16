@@ -575,7 +575,7 @@ export function createRenderer(canvas, assets) {
       // direction. The raster head sits on the right, so it flips when the
       // projectile flies left.
       if (assets && assets.fxFireball) {
-        drawRaster(assets.fxFireball, p.x, p.y + 40, 81, {
+        drawRaster(assets.fxFireball, p.x, p.y + 40, 140, {
           flip: p.dir < 0,
           alpha: 0.95,
         });
