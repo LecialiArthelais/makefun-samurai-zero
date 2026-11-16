@@ -15,8 +15,8 @@ fails to load, the game falls back to the code-drawn pixel sprites.
 
 ## Choose your samurai — the kaiju is drawn at random
 
-- **AO, the Blue Samurai** — calm as the moon, a blade of light.
-- **AKA, the Red Samurai** — burning like fire, a blade of embers.
+- **Hayate, the Blue Samurai** — calm as the moon, a blade of light. (Hayate 疾風 = swift wind, gale)
+- **Enjin, the Red Samurai** — burning like fire, a blade of embers. (Enjin 炎刃 = flame blade)
 - Both share one moveset. The boss is drawn at random, equal chance (1/3
   each): **KAGUTSUCHI, the Fire Kaiju** (claws and fireballs),
   **UMIBOZU, the Sea Kaiju** (rams and tsunamis), or **SANRYU, the
@@ -55,8 +55,8 @@ node serve.ts
 - **Combo** — consecutive hits within 2.5 seconds build a chain: every 5 hits
   raises the score multiplier (up to x3). Getting hit, or letting the chain
   run out, breaks it. The HUD shows the combo and the time left to keep it.
-- **Two samurai, two rhythms** — AO (blue) is swift: fast slashes (7 dmg,
-  0.26s), lighter heavy (20). AKA (red) is mighty: slow slashes (10 dmg,
+- **Two samurai, two rhythms** — Hayate (blue) is swift: fast slashes (7 dmg,
+  0.26s), lighter heavy (20). Enjin (red) is mighty: slow slashes (10 dmg,
   0.38s), heavier heavy (26). Slash DPS is near-equal, so the choice is
   about feel, not power.
 - Every attack is telegraphed — ground markers before lightning, a rearing

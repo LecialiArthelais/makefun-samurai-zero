@@ -1,4 +1,4 @@
-// Raster art assets: the two GPT-generated samurai (blue AO, red AKA),
+// Raster art assets: the two GPT-generated samurai (blue Hayate, red Enjin),
 // their HUD portraits, the four attack-effect sheets (slash arc,
 // fireball, lightning, dash), and the three generated kaiju (fire
 // KAGUTSUCHI, sea UMIBOZU, dragon SANRYU). All live under game/assets/,

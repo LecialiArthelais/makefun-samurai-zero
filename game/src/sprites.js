@@ -642,7 +642,7 @@ const SAMURAI_BLUE = {
   hurt: SAMURAI_HURT,
 };
 
-/** AKA (red): indigo cloth -> bright red, shadows/hakama -> dark red, sash -> gold. */
+/** ENJIN (red): indigo cloth -> bright red, shadows/hakama -> dark red, sash -> gold. */
 const SAMURAI_RED = recolorSamurai(SAMURAI_BLUE, { B: 'A', D: 'a', Q: 'a', A: 'X' });
 
 /** Recolour a kaiju pose set (closed/open) through a key->key map. */

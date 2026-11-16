@@ -386,7 +386,7 @@ export function createWorld(random) {
     return { raijuHit, phaseUp, comboUp };
   }
 
-  /** The active samurai's attack numbers — AO is swift, AKA is mighty. */
+  /** The active samurai's attack numbers — Hayate is swift, Enjin is mighty. */
   function variantStats() {
     return SAMURAI_VARIANTS[state.samurai || 'blue'];
   }
