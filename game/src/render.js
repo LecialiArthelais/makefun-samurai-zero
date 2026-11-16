@@ -714,7 +714,7 @@ export function createRenderer(canvas, assets) {
   }
 
   // ---------------------------------------------------------- frame
-  function render(state, screen, dt, best, selection, kaijuSel, diffSel) {
+  function render(state, screen, dt, best, selection, kaijuSel, diffSel, preview) {
     updateShake(dt);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#0d0916';
@@ -723,6 +723,15 @@ export function createRenderer(canvas, assets) {
     ctx.setTransform(view.scale, 0, 0, view.scale, view.ox + shake.x * view.scale, view.oy + shake.y * view.scale);
     ctx.imageSmoothingEnabled = false;
     drawBackground(state.elapsed);
+    // Preview: one character, centred, breathing on the backdrop. No HUD,
+    // no other fighter — the clip is just that character, clean.
+    if (screen === 'preview') {
+      const [kind] = (preview || '').split('-');
+      if (kind === 'samurai') drawRonin(state, state.elapsed);
+      else if (kind === 'kaiju') drawRaiju(state, state.elapsed);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      return;
+    }
     // The select screen hides the duelists — the cards and the difficulty
     // buttons are the scene there, and the fighters behind them would
     // overlap the UI. The title keeps them (the standoff is the title).

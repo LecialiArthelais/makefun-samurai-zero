@@ -37,6 +37,7 @@ const statusEl = document.getElementById('status');
 const params = new URLSearchParams(window.location.search);
 const seed = Number(params.get('seed') || 1) || 1;
 const shot = params.get('shot');
+const preview = params.get('preview'); // e.g. 'samurai-blue', 'kaiju-dragon'
 
 const world = createWorld(createRandom(seed));
 const renderer = createRenderer(canvas, assets);
@@ -175,6 +176,22 @@ if (shot) {
   renderer.render(world.state, screen, 0, staged.best, staged.selection);
   window.__shotReady = true;
 } else {
+  // --- Preview mode: one character stands idle on the Edo backdrop,
+  // breathing, for a short video clip. No HUD, no input, no fight — just
+  // the character, centred, so the clip shows how it moves and that the
+  // art is clean. ?preview=samurai-blue|samurai-red|kaiju-fire|kaiju-sea|
+  // kaiju-dragon
+  if (preview) {
+    const [kind, id] = preview.split('-');
+    if (kind === 'samurai' && SAMURAI_ORDER.includes(id)) {
+      world.setMatch(id, 'fire');
+      world.state.ronin.x = 640;
+    } else if (kind === 'kaiju' && KAIJU_ORDER.includes(id)) {
+      world.setMatch('blue', id);
+      world.state.raiju.x = 640;
+    }
+    screen = 'preview';
+  }
   // --- The live loop.
   let last = performance.now();
   let accumulator = 0;
@@ -200,6 +217,11 @@ if (shot) {
         // The title scene breathes: the duelists stand off, embers drift.
         world.state.elapsed += dtReal;
       }
+    } else if (screen === 'preview') {
+      // Preview: the character stands idle and breathes. Only the clock
+      // advances — no fight, no timer, no attacks — so the clip is just
+      // the character alive on the backdrop.
+      world.state.elapsed += dtReal;
     } else if (screen === 'select') {
       // A/D switches the highlighted samurai (edge only — holding a key
       // must not flip the choice every frame).
@@ -260,7 +282,7 @@ if (shot) {
       }
     }
 
-    renderer.render(world.state, screen, dtReal, best, SAMURAI_ORDER[selection], KAIJU_ORDER[kaijuSelection], DIFFICULTY_ORDER[diffSelection]);
+    renderer.render(world.state, screen, dtReal, best, SAMURAI_ORDER[selection], KAIJU_ORDER[kaijuSelection], DIFFICULTY_ORDER[diffSelection], preview);
     window.requestAnimationFrame(frame);
   }
 
