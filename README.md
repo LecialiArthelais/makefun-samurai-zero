@@ -55,6 +55,10 @@ node serve.ts
 - **Combo** — consecutive hits within 2.5 seconds build a chain: every 5 hits
   raises the score multiplier (up to x3). Getting hit, or letting the chain
   run out, breaks it. The HUD shows the combo and the time left to keep it.
+- **Two samurai, two rhythms** — AO (blue) is swift: fast slashes (7 dmg,
+  0.26s), lighter heavy (20). AKA (red) is mighty: slow slashes (10 dmg,
+  0.38s), heavier heavy (26). Slash DPS is near-equal, so the choice is
+  about feel, not power.
 - Every attack is telegraphed — ground markers before lightning, a rearing
   head before the swipe, a crouch before the leap — so every hit is dodgeable.
 

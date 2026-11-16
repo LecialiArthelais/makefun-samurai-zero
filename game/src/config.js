@@ -43,19 +43,25 @@ export const RONIN = {
   maxCells: 3,
 };
 
-/** The two playable samurai. Same moveset, different theme — the player
- * picks one on the select screen. `fx` colours the slash arc and the
- * special projectile; `cloth`/`dark` are the sprite palette keys used by
- * the variant (see sprites.js). */
+/** The two playable samurai. Same moveset, different theme AND different
+ * feel — AO is swift (fast slashes, lighter blows), AKA is mighty (slow
+ * slashes, heavier blows). Slash DPS is near-equal (~27 vs ~26) so neither
+ * dominates; the choice is about rhythm, not power. `fx` colours the slash
+ * arc and the special projectile; `cloth`/`dark` are the sprite palette
+ * keys used by the variant (see sprites.js). */
 export const SAMURAI_VARIANTS = {
   blue: {
     id: 'blue', name: 'AO', title: 'Blue Samurai',
     tagline: 'Calm as the moon, a blade of light.',
+    style: 'SWIFT — FAST SLASHES, LIGHTER BLOWS',
+    slashDamage: 7, slashCooldown: 0.26, heavyDamage: 20,
     slash: '#8ef1ff', slashCore: '#f3f7ff', special: '#8ef1ff', specialCore: '#f2e9ff',
   },
   red: {
     id: 'red', name: 'AKA', title: 'Red Samurai',
     tagline: 'Burning like fire, a blade of embers.',
+    style: 'MIGHTY — SLOW SLASHES, HEAVIER BLOWS',
+    slashDamage: 10, slashCooldown: 0.38, heavyDamage: 26,
     slash: '#ff9e45', slashCore: '#ffd94a', special: '#ff7a2a', specialCore: '#ffd94a',
   },
 };

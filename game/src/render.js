@@ -797,13 +797,16 @@ export function createRenderer(canvas, assets) {
         const set = SPRITES.samurai[card.id];
         drawPixelSprite(ctx, set.idle[0], cx, 420, 5);
       }
-      // Name + tagline.
+      // Name + tagline + fighting style (AO swift, AKA mighty).
       ctx.fillStyle = PALETTE.text;
       ctx.font = `bold 26px ${FONT}`;
-      ctx.fillText(card.variant.title.toUpperCase(), cx, 470);
+      ctx.fillText(card.variant.title.toUpperCase(), cx, 468);
       ctx.fillStyle = PALETTE.muted;
       ctx.font = `14px ${FONT}`;
-      ctx.fillText(card.variant.tagline, cx, 498);
+      ctx.fillText(card.variant.tagline, cx, 492);
+      ctx.fillStyle = card.variant.slash;
+      ctx.font = `bold 13px ${FONT}`;
+      ctx.fillText(card.variant.style, cx, 514);
       if (selected) {
         ctx.fillStyle = card.variant.slash;
         ctx.font = `bold 16px ${FONT}`;

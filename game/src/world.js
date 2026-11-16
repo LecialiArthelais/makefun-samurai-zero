@@ -6,7 +6,7 @@
 // knowing about screens or sound. Nothing here allocates after createWorld
 // returns; every random choice comes from the seeded generator passed in,
 // so the same seed always plays the same fight.
-import { FIELD, KAIJU_ORDER, KAIJU_TYPES, RAIJU, RONIN, SCORE, STEP, TIME_LIMIT } from './config.js';
+import { FIELD, KAIJU_ORDER, KAIJU_TYPES, RAIJU, RONIN, SAMURAI_VARIANTS, SCORE, STEP, TIME_LIMIT } from './config.js';
 
 export const EVENT_SLASH = 1;
 export const EVENT_HEAVY = 2;
@@ -386,9 +386,15 @@ export function createWorld(random) {
     return { raijuHit, phaseUp, comboUp };
   }
 
+  /** The active samurai's attack numbers — AO is swift, AKA is mighty. */
+  function variantStats() {
+    return SAMURAI_VARIANTS[state.samurai || 'blue'];
+  }
+
   function trySlash(heavy) {
+    const v = variantStats();
     const reach = heavy ? RONIN.heavyReach : RONIN.slashReach;
-    const damage = heavy ? RONIN.heavyDamage : RONIN.slashDamage;
+    const damage = heavy ? v.heavyDamage : v.slashDamage;
     const box = {
       x: ronin.facing > 0 ? ronin.x : ronin.x - reach,
       y: ronin.y - 110,
@@ -494,7 +500,7 @@ export function createWorld(random) {
     if (input.heavy) ronin.heavyBuffer = 0.12;
     if (ronin.slashBuffer > 0 && ronin.slashTimer <= 0 && !locked) {
       ronin.slashBuffer = 0;
-      ronin.slashTimer = RONIN.slashCooldown;
+      ronin.slashTimer = variantStats().slashCooldown;
       ronin.pose = 'slash';
       ronin.poseTime = 0.18;
       events |= EVENT_SLASH;
