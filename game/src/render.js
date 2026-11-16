@@ -323,6 +323,12 @@ export function createRenderer(canvas, assets) {
       ctx.fillRect(x, y, size, size);
     }
     ctx.globalAlpha = 1;
+    // Cinematic vignette: the edges darken, pulling the eye to the duel.
+    const vig = ctx.createRadialGradient(640, 360, 260, 640, 360, 760);
+    vig.addColorStop(0, 'rgba(10,6,16,0)');
+    vig.addColorStop(1, 'rgba(10,6,16,0.42)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, FIELD.width, FIELD.height);
   }
 
   // ---------------------------------------------------------- actors
@@ -346,6 +352,14 @@ export function createRenderer(canvas, assets) {
     // Invulnerability: the ronin goes ghostly, never invisible — the hero
     // must always read, even in a screenshot.
     const ghost = r.invulnerable > 0 && Math.floor(elapsed * 14) % 2 === 0;
+    // Slash lunge: the hero drives forward into the cut, strongest at the
+    // start of the swing, easing back as the pose ends.
+    let lunge = 0;
+    if (r.pose === 'slash' || r.pose === 'heavy') {
+      const dur = r.pose === 'heavy' ? 0.32 : 0.18;
+      lunge = r.facing * 14 * Math.max(0, Math.min(1, r.poseTime / dur));
+    }
+    const hx = r.x + lunge;
     const img = heroImage(state);
     if (img) {
       // One static raster portrait, so the pose reads through motion: a
@@ -360,7 +374,7 @@ export function createRenderer(canvas, assets) {
       } else if (r.pose === 'slash') tilt = 0.16 * r.facing;
       else if (r.pose === 'heavy') tilt = 0.22 * r.facing;
       else if (r.pose === 'hurt') filter = 'brightness(1.7) saturate(0.6)';
-      drawRaster(img, r.x, r.y + bob, 200, {
+      drawRaster(img, hx, r.y + bob, 210, {
         flip: r.facing < 0,
         tilt,
         alpha: ghost ? 0.45 : 1,
@@ -372,11 +386,11 @@ export function createRenderer(canvas, assets) {
       ctx.save();
       if (ghost) ctx.globalAlpha = 0.45;
       if (r.facing < 0) {
-        ctx.translate(r.x, 0);
+        ctx.translate(hx, 0);
         ctx.scale(-1, 1);
-        ctx.translate(-r.x, 0);
+        ctx.translate(-hx, 0);
       }
-      drawPixelSprite(ctx, roninFrame(state), r.x, r.y, scale);
+      drawPixelSprite(ctx, roninFrame(state), hx, r.y, scale);
       ctx.restore();
     }
     // Shadow.
@@ -393,9 +407,10 @@ export function createRenderer(canvas, assets) {
     const rear = k.headRear * 28;
     const drop = k.bodyDrop * 18;
     const bob = Math.sin(elapsed * 2.2) * 3;
+    const set = SPRITES.raiju[state.kaiju || 'fire'] || SPRITES.raiju.fire;
     const frame = (k.state === 'telegraph' && (k.attack === 'swipe' || k.attack === 'leap')) || k.state === 'recover'
-      ? SPRITES.raiju.open
-      : SPRITES.raiju.closed;
+      ? set.open
+      : set.closed;
     ctx.save();
     if (k.flash > 0) ctx.filter = 'brightness(1.7) saturate(0.6)';
     drawPixelSprite(ctx, frame, k.x, FIELD.groundY + drop - rear + bob, s);
@@ -653,8 +668,10 @@ export function createRenderer(canvas, assets) {
     ctx.fillStyle = PALETTE.text;
     ctx.fillText(`SCORE ${state.score}`, FIELD.width / 2, 68);
     ctx.textAlign = 'left';
-    // Kaiju portrait + HP + phase (top-right).
-    drawPixelSpriteAt(ctx, SPRITES.portraits.kaiju, FIELD.width - 72, 12, 3);
+    // Kaiju portrait + HP + phase (top-right). The portrait matches the
+    // drawn kaiju type (fire / sea / dragon).
+    const kaiPortrait = SPRITES.portraits.kaiju[state.kaiju || 'fire'] || SPRITES.portraits.kaiju.fire;
+    drawPixelSpriteAt(ctx, kaiPortrait, FIELD.width - 72, 12, 3);
     ctx.textAlign = 'right';
     ctx.font = `bold 15px ${FONT}`;
     ctx.fillStyle = PALETTE.text;
@@ -797,8 +814,9 @@ export function createRenderer(canvas, assets) {
     ctx.fillText(state.won ? 'THE STORM FALLS' : 'THE STORM WINS', FIELD.width / 2, y + 78);
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `16px ${FONT}`;
+    const kaiName = KAIJU_TYPES[state.kaiju || 'fire'].name;
     ctx.fillText(
-      state.won ? 'RAIJU IS FELLED. THE TOWN STILL STANDS.' : 'THE SAMURAI FALLS. THE THUNDER ROLLS ON.',
+      state.won ? `${kaiName} IS FELLED. THE TOWN STILL STANDS.` : 'THE SAMURAI FALLS. THE THUNDER ROLLS ON.',
       FIELD.width / 2, y + 112,
     );
     ctx.fillStyle = PALETTE.text;

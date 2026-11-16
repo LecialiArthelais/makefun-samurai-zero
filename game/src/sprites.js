@@ -41,6 +41,28 @@ export const PALETTE = {
   I: '#b39ddb', // kaiju body highlight (lighter violet top)
   V: '#33204f', // kaiju deep shadow
   a: '#8a2a1a', // red samurai cloth shadow / hakama (dark red)
+  // Kaiju variants (recolours of the Raiju matrices): fire, sea, dragon.
+  b: '#c0392b', // fire body (red)
+  c: '#f5b041', // fire belly (orange)
+  d: '#7e2a1e', // fire mane (dark red)
+  e: '#e67e22', // fire highlight (orange)
+  f: '#4a1a12', // fire shadow (dark red)
+  g: '#ff7a2a', // fire eye (orange)
+  h: '#ffd94a', // fire crackle (yellow)
+  i: '#2f6fb2', // sea body (blue)
+  j: '#1f4d80', // sea mane (dark blue)
+  k: '#a8d8ff', // sea belly (light blue)
+  l: '#7ec8ff', // sea highlight (cyan)
+  m: '#0f2a4a', // sea shadow (dark blue)
+  n: '#bfe8ff', // sea eye (bright cyan)
+  o: '#5ac8ff', // sea crackle (cyan)
+  p: '#b8860b', // dragon body (gold)
+  q: '#6b4e00', // dragon mane (dark gold)
+  r: '#e8d9a8', // dragon belly (pale gold)
+  s: '#ffd94a', // dragon highlight (bright gold)
+  t: '#3d2a00', // dragon shadow (dark gold)
+  u: '#fff3a0', // dragon eye (pale gold)
+  v: '#e8c832', // dragon crackle (gold)
 };
 
 /** Draw one matrix sprite centred on (cx, cy) at the given pixel scale. */
@@ -623,18 +645,45 @@ const SAMURAI_BLUE = {
 /** AKA (red): indigo cloth -> bright red, shadows/hakama -> dark red, sash -> gold. */
 const SAMURAI_RED = recolorSamurai(SAMURAI_BLUE, { B: 'A', D: 'a', Q: 'a', A: 'X' });
 
+/** Recolour a kaiju pose set (closed/open) through a key->key map. */
+function recolorKaiju(set, map) {
+  const recolor = (frame) => frame.map((row) => [...row].map((ch) => map[ch] || ch).join(''));
+  return { closed: recolor(set.closed), open: recolor(set.open) };
+}
+
+const RAIJU_BASE = { closed: RAIJU_CLOSED, open: RAIJU_OPEN };
+/** KAGUTSUCHI (fire): red body, orange belly, dark-red mane, orange eye. */
+const RAIJU_FIRE = recolorKaiju(RAIJU_BASE, { M: 'd', Y: 'b', L: 'c', I: 'e', V: 'f', '2': 'g', Z: 'h' });
+/** UMIBOZU (sea): blue body, light-blue belly, dark-blue mane, cyan eye. */
+const RAIJU_SEA = recolorKaiju(RAIJU_BASE, { M: 'j', Y: 'i', L: 'k', I: 'l', V: 'm', '2': 'n', Z: 'o' });
+/** SANRYU (dragon): gold body, pale-gold belly, dark-gold mane, pale-gold eye. */
+const RAIJU_DRAGON = recolorKaiju(RAIJU_BASE, { M: 'q', Y: 'p', L: 'r', I: 's', V: 't', '2': 'u', Z: 'v' });
+
+/** Recolour a 16x16 portrait through a key->key map. */
+function recolorPortrait(frame, map) {
+  return frame.map((row) => [...row].map((ch) => map[ch] || ch).join(''));
+}
+const KAIJU_PORTRAIT_FIRE = recolorPortrait(KAIJU_PORTRAIT, { M: 'd', Y: 'b', L: 'c', '2': 'g' });
+const KAIJU_PORTRAIT_SEA = recolorPortrait(KAIJU_PORTRAIT, { M: 'j', Y: 'i', L: 'k', '2': 'n' });
+const KAIJU_PORTRAIT_DRAGON = recolorPortrait(KAIJU_PORTRAIT, { M: 'q', Y: 'p', L: 'r', '2': 'u' });
+
 export const SPRITES = {
   samurai: {
     blue: SAMURAI_BLUE,
     red: SAMURAI_RED,
   },
   raiju: {
-    closed: RAIJU_CLOSED,
-    open: RAIJU_OPEN,
+    fire: RAIJU_FIRE,
+    sea: RAIJU_SEA,
+    dragon: RAIJU_DRAGON,
   },
   portraits: {
     hero: HERO_PORTRAIT,
-    kaiju: KAIJU_PORTRAIT,
+    kaiju: {
+      fire: KAIJU_PORTRAIT_FIRE,
+      sea: KAIJU_PORTRAIT_SEA,
+      dragon: KAIJU_PORTRAIT_DRAGON,
+    },
   },
   lantern: LANTERN,
 };

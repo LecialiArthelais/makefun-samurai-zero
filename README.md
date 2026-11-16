@@ -1,6 +1,6 @@
 # SAMURAI ZERO
 
-A lone samurai — a ronin with nothing left to lose — duels **Raiju, the thunder kaiju**, in a burning castle town at
+A lone samurai — a ronin with nothing left to lose — duels **a kaiju**, in a burning castle town at
 dusk. Three minutes on the clock, three boss phases, one blade. Named for the moment after ruin, when a fighter starts from zero.
 
 A make.fun **best-game-01** entry. The game is plain static files — no
