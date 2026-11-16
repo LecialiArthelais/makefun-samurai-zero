@@ -164,10 +164,12 @@ export function createRenderer(canvas, assets) {
     const img = heroImage(state);
     if (img) {
       // One static raster portrait, so the pose reads through motion: a
-      // gentle idle bob, a forward lean while running, a deep lean into the
-      // slash and the heavy iaido draw, and a white-hot flash when hurt.
-      let bob = Math.sin(elapsed * 2) * 2;
-      let tilt = 0;
+      // gentle idle breath (up-down bob plus a faint sway), a forward lean
+      // while running, a deep lean into the slash and the heavy iaido draw,
+      // and a white-hot flash when hurt. The hero is never frozen — even
+      // standing still, he breathes.
+      let bob = Math.sin(elapsed * 2) * 3;
+      let tilt = Math.sin(elapsed * 2 + 0.5) * 0.015;
       let filter = '';
       if (r.pose === 'run') {
         tilt = 0.08 * r.facing;
@@ -205,7 +207,13 @@ export function createRenderer(canvas, assets) {
     // The beast rears (lifts) during the telegraph and drops on the stomp.
     const rear = k.headRear * 28;
     const drop = k.bodyDrop * 18;
-    const bob = Math.sin(elapsed * 2.2) * 3;
+    // Idle life: the kaiju breathes. A slow up-down bob plus a faint sway,
+    // so it never stands frozen — the beast is alive even while it waits.
+    // The sway is small (a degree of tilt) and the bob is slow, so the
+    // silhouette stays clean and readable.
+    const breathing = k.state === 'idle' || k.state === 'recover';
+    const bob = breathing ? Math.sin(elapsed * 1.8) * 4 : Math.sin(elapsed * 2.2) * 3;
+    const sway = breathing ? Math.sin(elapsed * 1.8 + 0.6) * 0.02 : 0;
     const bottomY = FIELD.groundY + drop - rear + bob;
     // The raster kaiju when it loaded, the code-drawn pixel sprite
     // otherwise. The raster is drawn much taller than the hero (it is a
@@ -214,6 +222,7 @@ export function createRenderer(canvas, assets) {
     const kaijuImg = assets && assets[kaijuKey];
     if (kaijuImg) {
       drawRaster(kaijuImg, k.x, bottomY, 320, {
+        tilt: sway,
         filter: k.flash > 0 ? 'brightness(1.7) saturate(0.6)' : '',
       });
     } else {
@@ -226,16 +235,6 @@ export function createRenderer(canvas, assets) {
       if (k.flash > 0) ctx.filter = 'brightness(1.7) saturate(0.6)';
       drawPixelSprite(ctx, frame, k.x, bottomY, s);
       ctx.restore();
-    }
-    // Phase 3 aura: crackling light around the beast, in its own colour.
-    if (k.phase === 3) {
-      ctx.globalAlpha = 0.25 + 0.2 * Math.sin(elapsed * 9);
-      ctx.strokeStyle = KAIJU_TYPES[state.kaiju || 'fire'].aura;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(k.x, FIELD.groundY - 100, 170 + Math.sin(elapsed * 5) * 8, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
     }
     // Shadow.
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
