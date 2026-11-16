@@ -401,20 +401,31 @@ export function createRenderer(canvas, assets) {
   function drawRaiju(state, elapsed) {
     const k = state.raiju;
     if (state.over && state.won) return; // felled: the storm is gone.
-    // One connected silhouette, 280x200 at scale 5. The beast rears (lifts)
-    // during the telegraph and drops on the stomp; the maw opens to strike.
-    const s = 5;
+    // The beast rears (lifts) during the telegraph and drops on the stomp.
     const rear = k.headRear * 28;
     const drop = k.bodyDrop * 18;
     const bob = Math.sin(elapsed * 2.2) * 3;
-    const set = SPRITES.raiju[state.kaiju || 'fire'] || SPRITES.raiju.fire;
-    const frame = (k.state === 'telegraph' && (k.attack === 'swipe' || k.attack === 'leap')) || k.state === 'recover'
-      ? set.open
-      : set.closed;
-    ctx.save();
-    if (k.flash > 0) ctx.filter = 'brightness(1.7) saturate(0.6)';
-    drawPixelSprite(ctx, frame, k.x, FIELD.groundY + drop - rear + bob, s);
-    ctx.restore();
+    const bottomY = FIELD.groundY + drop - rear + bob;
+    // The raster kaiju when it loaded, the code-drawn pixel sprite
+    // otherwise. The raster is drawn taller than the hero (it is a boss);
+    // the pixel sprite keeps its old 280x200 frame.
+    const kaijuKey = { fire: 'kaijuFire', sea: 'kaijuSea', dragon: 'kaijuDragon' }[state.kaiju || 'fire'];
+    const kaijuImg = assets && assets[kaijuKey];
+    if (kaijuImg) {
+      drawRaster(kaijuImg, k.x, bottomY, 230, {
+        filter: k.flash > 0 ? 'brightness(1.7) saturate(0.6)' : '',
+      });
+    } else {
+      const s = 5;
+      const set = SPRITES.raiju[state.kaiju || 'fire'] || SPRITES.raiju.fire;
+      const frame = (k.state === 'telegraph' && (k.attack === 'swipe' || k.attack === 'leap')) || k.state === 'recover'
+        ? set.open
+        : set.closed;
+      ctx.save();
+      if (k.flash > 0) ctx.filter = 'brightness(1.7) saturate(0.6)';
+      drawPixelSprite(ctx, frame, k.x, bottomY, s);
+      ctx.restore();
+    }
     // Phase 3 aura: crackling light around the beast, in its own colour.
     if (k.phase === 3) {
       ctx.globalAlpha = 0.25 + 0.2 * Math.sin(elapsed * 9);
@@ -681,10 +692,16 @@ export function createRenderer(canvas, assets) {
       ctx.fillRect(FIELD.width / 2 - barW / 2, 100, barW * Math.max(0, state.comboTimer / SCORE.comboWindow), 4);
     }
     ctx.textAlign = 'left';
-    // Kaiju portrait + HP + phase (top-right). The portrait matches the
-    // drawn kaiju type (fire / sea / dragon).
-    const kaiPortrait = SPRITES.portraits.kaiju[state.kaiju || 'fire'] || SPRITES.portraits.kaiju.fire;
-    drawPixelSpriteAt(ctx, kaiPortrait, FIELD.width - 72, 12, 3);
+    // Kaiju portrait + HP + phase (top-right). The raster kaiju when it
+    // loaded, the code-drawn portrait otherwise.
+    const kaijuKey = { fire: 'kaijuFire', sea: 'kaijuSea', dragon: 'kaijuDragon' }[state.kaiju || 'fire'];
+    const kaijuImg = assets && assets[kaijuKey];
+    if (kaijuImg) {
+      drawRaster(kaijuImg, FIELD.width - 48, 60, 48);
+    } else {
+      const kaiPortrait = SPRITES.portraits.kaiju[state.kaiju || 'fire'] || SPRITES.portraits.kaiju.fire;
+      drawPixelSpriteAt(ctx, kaiPortrait, FIELD.width - 72, 12, 3);
+    }
     ctx.textAlign = 'right';
     ctx.font = `bold 15px ${FONT}`;
     ctx.fillStyle = PALETTE.text;

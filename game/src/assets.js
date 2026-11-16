@@ -1,10 +1,11 @@
 // Raster art assets: the two GPT-generated samurai (blue AO, red AKA),
-// their HUD portraits, and the four attack-effect sheets (slash arc,
-// fireball, lightning, dash). All live under game/assets/, so they pass the
-// kit's references gate (files inside game/ only, no network). Each entry is
-// an HTMLImageElement, or null when the file failed to load — the renderer
-// falls back to the code-drawn pixel sprites in that case, so the game
-// never depends on an asset being present.
+// their HUD portraits, the four attack-effect sheets (slash arc,
+// fireball, lightning, dash), and the three generated kaiju (fire
+// KAGUTSUCHI, sea UMIBOZU, dragon SANRYU). All live under game/assets/,
+// so they pass the kit's references gate (files inside game/ only, no
+// network). Each entry is an HTMLImageElement, or null when the file
+// failed to load — the renderer falls back to the code-drawn pixel
+// sprites in that case, so the game never depends on an asset being present.
 const FILES = {
   samuraiBlue: 'assets/samurai-blue.png',
   samuraiRed: 'assets/samurai-red.png',
@@ -14,6 +15,9 @@ const FILES = {
   fxFireball: 'assets/fx-fireball.png',
   fxLightning: 'assets/fx-lightning.png',
   fxDash: 'assets/fx-dash.png',
+  kaijuFire: 'assets/kaiju-fire.png',
+  kaijuSea: 'assets/kaiju-sea.png',
+  kaijuDragon: 'assets/kaiju-dragon.png',
 };
 
 const TIMEOUT_MS = 5000;

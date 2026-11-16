@@ -8,9 +8,10 @@ A lone samurai — a ronin with nothing left to lose — duels **a kaiju**, in a
 dusk. Three minutes on the clock, three boss phases, one blade. Named for the moment after ruin, when a fighter starts from zero.
 
 A make.fun **best-game-01** entry. The game is plain static files — no
-library, no network request. The two samurai and the four attack effects are
-raster art in `game/assets/`; the kaiju, the town and the sky are drawn in
-code; every sound is synthesised with Web Audio.
+library, no network request. The two samurai, the three kaiju and the four
+attack effects are raster art in `game/assets/`; the town and the sky are
+drawn in code; every sound is synthesised with Web Audio. If a raster asset
+fails to load, the game falls back to the code-drawn pixel sprites.
 
 ## Choose your samurai — the kaiju is drawn at random
 
@@ -62,8 +63,10 @@ node serve.ts
 ```
 game/
   index.html        the page: a full-screen canvas
-  assets/           raster art: the two samurai, their portraits, the four
-                    attack effects (slash arc, fireball, lightning, dash)
+  assets/           raster art: the two samurai, their portraits, the three
+                    kaiju (fire KAGUTSUCHI, sea UMIBOZU, dragon SANRYU),
+                    the four attack effects (slash arc, fireball, lightning,
+                    dash); all PNG with transparency, white background removed
   src/
     config.js       every tuning number and colour
     random.js       one seeded generator (SplitMix64) for all gameplay chance
