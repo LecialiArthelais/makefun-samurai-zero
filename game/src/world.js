@@ -21,6 +21,7 @@ export const EVENT_LOSE = 512;
 export const EVENT_DASH = 1024;
 export const EVENT_JUMP = 2048;
 export const EVENT_ROAR = 4096;
+export const EVENT_COMBO = 8192;
 
 const MAX_PARTICLES = 160;
 const MAX_NUMBERS = 24;
@@ -73,6 +74,8 @@ export function createWorld(random) {
     ronin, raiju, particles, numbers, bolts, waves, projectiles,
     score: 0, timeLeft: TIME_LIMIT, over: false, won: false,
     noHit: true, hits: 0, damageDealt: 0, elapsed: 0, endTimer: 0,
+    /** Combo: consecutive hits within SCORE.comboWindow build a multiplier. */
+    combo: 0, comboTimer: 0, comboBest: 0,
     /** The match: which samurai the player picked, which kaiju was drawn. */
     samurai: 'blue', kaiju: 'fire',
   };
@@ -105,6 +108,7 @@ export function createWorld(random) {
     for (const p of projectiles) p.active = false;
     state.score = 0; state.timeLeft = TIME_LIMIT; state.over = false; state.won = false;
     state.noHit = true; state.hits = 0; state.damageDealt = 0; state.elapsed = 0; state.endTimer = 0;
+    state.combo = 0; state.comboTimer = 0; state.comboBest = 0;
   }
 
   function spawnParticle(x, y, vx, vy, life, size, color, gravity) {
@@ -140,11 +144,23 @@ export function createWorld(random) {
     return { x: ronin.x - RONIN.width / 2, y: ronin.y - RONIN.height, width: RONIN.width, height: RONIN.height };
   }
 
+  /** Score multiplier from the combo: x1 base, +1 tier per comboStep hits, capped. */
+  function comboMultiplier(combo) {
+    return 1 + Math.min(Math.floor(combo / SCORE.comboStep), SCORE.comboMax - 1);
+  }
+
   function dealDamageToRaiju(amount, x, y, big) {
     raiju.hp = Math.max(0, raiju.hp - amount);
     raiju.flash = 0.12;
     state.damageDealt += amount;
-    state.score += amount * SCORE.perDamage;
+    // Combo: this hit chains onto the last one if it lands inside the window.
+    // Getting hurt breaks it (see hurtRonin); the window expiring does too.
+    const prevMult = comboMultiplier(state.combo);
+    state.combo += 1;
+    state.comboTimer = SCORE.comboWindow;
+    if (state.combo > state.comboBest) state.comboBest = state.combo;
+    const mult = comboMultiplier(state.combo);
+    state.score += amount * SCORE.perDamage * mult;
     state.hits += 1;
     spawnNumber(raiju.x + (random() * 60 - 30), raiju.y - 160, String(amount), big ? '#ffd94a' : '#ffffff');
     burst(x, y, big ? 14 : 8, big ? 320 : 220, 0.5, 3, '#b78bff', 300);
@@ -157,13 +173,14 @@ export function createWorld(random) {
     }
     // Phase lines: the storm quickens, then rages.
     const nextPhase = raiju.hp <= RAIJU.phase3At ? 3 : raiju.hp <= RAIJU.phase2At ? 2 : 1;
+    let phaseUp = false;
     if (nextPhase > raiju.phase) {
       raiju.phase = nextPhase;
       state.score += SCORE.phaseBonus;
       spawnNumber(raiju.x, raiju.y - 200, `PHASE ${nextPhase}`, '#b78bff');
-      return true;
+      phaseUp = true;
     }
-    return false;
+    return { phaseUp, comboUp: mult > prevMult };
   }
 
   function hurtRonin(amount, x, y) {
@@ -173,6 +190,9 @@ export function createWorld(random) {
     ronin.pose = 'hurt';
     ronin.poseTime = 0.25;
     state.noHit = false;
+    // Getting hit breaks the combo.
+    state.combo = 0;
+    state.comboTimer = 0;
     spawnNumber(ronin.x, ronin.y - 80, `-${amount}`, '#e05243');
     burst(ronin.x, ronin.y - 32, 12, 260, 0.5, 3, '#e05243', 300);
     return true;
@@ -348,6 +368,7 @@ export function createWorld(random) {
   function updateProjectiles(dt) {
     let raijuHit = false;
     let phaseUp = false;
+    let comboUp = false;
     for (const p of projectiles) {
       if (!p.active) continue;
       p.x += p.dir * p.speed * dt;
@@ -355,12 +376,14 @@ export function createWorld(random) {
       if (overlaps(box, raijuBox())) {
         p.active = false;
         raijuHit = true;
-        if (dealDamageToRaiju(p.damage, raiju.x - 100, raiju.y - 90, true)) phaseUp = true;
+        const r = dealDamageToRaiju(p.damage, raiju.x - 100, raiju.y - 90, true);
+        if (r.phaseUp) phaseUp = true;
+        if (r.comboUp) comboUp = true;
         burst(raiju.x - 100, raiju.y - 90, 20, 380, 0.6, 3, '#7ec8ff', 200);
       }
       if (p.x < -120 || p.x > FIELD.width + 120) p.active = false;
     }
-    return { raijuHit, phaseUp };
+    return { raijuHit, phaseUp, comboUp };
   }
 
   function trySlash(heavy) {
@@ -373,10 +396,10 @@ export function createWorld(random) {
       height: 110,
     };
     if (overlaps(box, raijuBox())) {
-      const phaseUp = dealDamageToRaiju(damage, raiju.x - 100, raiju.y - 90, heavy);
-      return { hit: true, phaseUp };
+      const r = dealDamageToRaiju(damage, raiju.x - 100, raiju.y - 90, heavy);
+      return { hit: true, phaseUp: r.phaseUp, comboUp: r.comboUp };
     }
-    return { hit: false, phaseUp: false };
+    return { hit: false, phaseUp: false, comboUp: false };
   }
 
   /**
@@ -479,6 +502,7 @@ export function createWorld(random) {
       if (r.hit) {
         events |= EVENT_RAIJU_HIT;
         if (r.phaseUp) events |= EVENT_PHASE;
+        if (r.comboUp) events |= EVENT_COMBO;
       }
     }
     if (ronin.heavyBuffer > 0 && ronin.heavyTimer <= 0 && !locked) {
@@ -491,6 +515,7 @@ export function createWorld(random) {
       if (r.hit) {
         events |= EVENT_RAIJU_HIT;
         if (r.phaseUp) events |= EVENT_PHASE;
+        if (r.comboUp) events |= EVENT_COMBO;
       }
     }
     if (input.special && ronin.specialTimer <= 0 && ronin.energy >= RONIN.specialCost && !locked) {
@@ -506,6 +531,15 @@ export function createWorld(random) {
         p.x = ronin.x + ronin.facing * 50;
         p.y = ronin.y - 70;
         p.dir = ronin.facing;
+      }
+    }
+
+    // --- Combo window: it runs out if no hit lands in time.
+    if (state.comboTimer > 0) {
+      state.comboTimer -= dt;
+      if (state.comboTimer <= 0) {
+        state.comboTimer = 0;
+        state.combo = 0;
       }
     }
 
@@ -525,6 +559,7 @@ export function createWorld(random) {
     const pr = updateProjectiles(dt);
     if (pr.raijuHit) events |= EVENT_RAIJU_HIT;
     if (pr.phaseUp) events |= EVENT_PHASE;
+    if (pr.comboUp) events |= EVENT_COMBO;
 
     // --- Particles and floating numbers.
     updateParticles(dt);

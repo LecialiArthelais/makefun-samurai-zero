@@ -51,6 +51,9 @@ node serve.ts
 - **Win** by felling Raiju before the 3:00 clock runs out. **Lose** if your HP
   reaches 0 or time runs out. Score is damage dealt, plus a time bonus and an
   untouched bonus on victory.
+- **Combo** — consecutive hits within 2.5 seconds build a chain: every 5 hits
+  raises the score multiplier (up to x3). Getting hit, or letting the chain
+  run out, breaks it. The HUD shows the combo and the time left to keep it.
 - Every attack is telegraphed — ground markers before lightning, a rearing
   head before the swipe, a crouch before the leap — so every hit is dodgeable.
 

@@ -8,6 +8,7 @@ import { BEST_KEY, SAMURAI_ORDER, STEP } from './config.js';
 import { createRandom } from './random.js';
 import {
   EVENT_BOLT,
+  EVENT_COMBO,
   EVENT_DASH,
   EVENT_HEAVY,
   EVENT_HIT,
@@ -105,6 +106,10 @@ function feedback(events) {
   if (events & EVENT_PHASE) {
     audio.sfx.roar();
     renderer.addTrauma(0.7);
+  }
+  if (events & EVENT_COMBO) {
+    audio.sfx.combo();
+    renderer.addTrauma(0.15);
   }
   if (events & EVENT_DASH) audio.sfx.dash();
   if (events & EVENT_JUMP) audio.sfx.jump();

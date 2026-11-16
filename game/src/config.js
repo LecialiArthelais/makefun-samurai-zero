@@ -128,6 +128,12 @@ export const SCORE = {
   phaseBonus: 500,
   winTimeBonus: 10,
   noHitBonus: 1000,
+  /** Combo: consecutive hits within this window (seconds) build a combo. */
+  comboWindow: 2.5,
+  /** Every this many combo hits raises the score multiplier by one tier. */
+  comboStep: 5,
+  /** Highest score multiplier (x1 base, so 3 means up to x3). */
+  comboMax: 3,
 };
 
 export const PALETTE = {

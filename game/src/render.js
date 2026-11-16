@@ -6,7 +6,7 @@
 // too: trauma-based screen shake (game-feel) moves only the camera, never
 // the simulation. The playfield is a fixed 1280x720 logical area, scaled to
 // the window with letterboxing.
-import { FIELD, KAIJU_TYPES, PALETTE, FONT, RAIJU, RONIN, SAMURAI_VARIANTS } from './config.js';
+import { FIELD, KAIJU_TYPES, PALETTE, FONT, RAIJU, RONIN, SAMURAI_VARIANTS, SCORE } from './config.js';
 import { drawPixelSprite, drawPixelSpriteAt, SPRITES } from './sprites.js';
 
 function hash(n) {
@@ -667,6 +667,19 @@ export function createRenderer(canvas, assets) {
     ctx.font = `bold 16px ${FONT}`;
     ctx.fillStyle = PALETTE.text;
     ctx.fillText(`SCORE ${state.score}`, FIELD.width / 2, 68);
+    // Combo: consecutive hits within the window raise the score multiplier.
+    // Shown once the chain is worth noticing, with the time left to keep it.
+    if (state.combo >= 2) {
+      const mult = 1 + Math.min(Math.floor(state.combo / SCORE.comboStep), SCORE.comboMax - 1);
+      ctx.font = `bold 16px ${FONT}`;
+      ctx.fillStyle = mult >= SCORE.comboMax ? PALETTE.spark : PALETTE.text;
+      ctx.fillText(`COMBO x${state.combo}  (x${mult})`, FIELD.width / 2, 92);
+      const barW = 120;
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(FIELD.width / 2 - barW / 2, 100, barW, 4);
+      ctx.fillStyle = PALETTE.spark;
+      ctx.fillRect(FIELD.width / 2 - barW / 2, 100, barW * Math.max(0, state.comboTimer / SCORE.comboWindow), 4);
+    }
     ctx.textAlign = 'left';
     // Kaiju portrait + HP + phase (top-right). The portrait matches the
     // drawn kaiju type (fire / sea / dragon).
@@ -804,7 +817,7 @@ export function createRenderer(canvas, assets) {
     ctx.fillStyle = 'rgba(10,6,16,0.55)';
     ctx.fillRect(0, 0, FIELD.width, FIELD.height);
     const w = 560;
-    const h = state.won ? 380 : 340;
+    const h = state.won ? 414 : 374;
     const x = (FIELD.width - w) / 2;
     const y = (FIELD.height - h) / 2;
     panel(x, y, w, h);
@@ -834,6 +847,10 @@ export function createRenderer(canvas, assets) {
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `15px ${FONT}`;
     ctx.fillText(`BEST  ${Math.max(best, state.score)}`, FIELD.width / 2, y + (state.won ? 318 : 282));
+    if (state.comboBest >= 2) {
+      ctx.fillStyle = PALETTE.text;
+      ctx.fillText(`BEST COMBO  x${state.comboBest}`, FIELD.width / 2, y + (state.won ? 352 : 316));
+    }
     ctx.fillStyle = PALETTE.text;
     ctx.font = `bold 18px ${FONT}`;
     ctx.fillText('PRESS ENTER TO FIGHT AGAIN', FIELD.width / 2, y + h - 24);

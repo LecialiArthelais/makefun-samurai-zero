@@ -118,6 +118,11 @@ export function createAudio() {
     click() {
       playTone({ type: 'triangle', frequency: 660, duration: 0.05, gain: 0.12 });
     },
+    combo() {
+      // The multiplier tier went up: two quick rising notes.
+      playTone({ type: 'triangle', frequency: 660, duration: 0.08, gain: 0.16 });
+      playTone({ type: 'triangle', frequency: 990, duration: 0.12, gain: 0.16, when: 0.07 });
+    },
     victory() {
       [0, 2, 4, 5, 7].forEach((degree, i) => {
         playTone({ type: 'triangle', frequency: PENTA[degree % PENTA.length] * (degree >= PENTA.length ? 2 : 1), duration: 0.5, gain: 0.2, when: i * 0.14 });
