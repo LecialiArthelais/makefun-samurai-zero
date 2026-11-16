@@ -407,12 +407,12 @@ export function createRenderer(canvas, assets) {
     const bob = Math.sin(elapsed * 2.2) * 3;
     const bottomY = FIELD.groundY + drop - rear + bob;
     // The raster kaiju when it loaded, the code-drawn pixel sprite
-    // otherwise. The raster is drawn taller than the hero (it is a boss);
-    // the pixel sprite keeps its old 280x200 frame.
+    // otherwise. The raster is drawn much taller than the hero (it is a
+    // boss); the pixel sprite keeps its old 280x200 frame.
     const kaijuKey = { fire: 'kaijuFire', sea: 'kaijuSea', dragon: 'kaijuDragon' }[state.kaiju || 'fire'];
     const kaijuImg = assets && assets[kaijuKey];
     if (kaijuImg) {
-      drawRaster(kaijuImg, k.x, bottomY, 230, {
+      drawRaster(kaijuImg, k.x, bottomY, 320, {
         filter: k.flash > 0 ? 'brightness(1.7) saturate(0.6)' : '',
       });
     } else {
