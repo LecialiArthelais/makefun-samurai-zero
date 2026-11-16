@@ -20,11 +20,12 @@ const KEYMAP = {
   Escape: 'pause', KeyP: 'pause',
   Enter: 'confirm',
   KeyM: 'mute',
+  Digit1: 'diff1', Digit2: 'diff2', Digit3: 'diff3',
 };
 
 export function createInput(canvas, onFirstGesture) {
-  const held = { left: false, right: false };
-  const pressed = { jump: false, slash: false, heavy: false, special: false, dash: false, pause: false, confirm: false, mute: false };
+  const held = { left: false, right: false, jump: false };
+  const pressed = { jump: false, slash: false, heavy: false, special: false, dash: false, pause: false, confirm: false, mute: false, diff1: false, diff2: false, diff3: false };
   let gestured = false;
 
   function gesture() {
@@ -38,8 +39,9 @@ export function createInput(canvas, onFirstGesture) {
     if (!action) return;
     if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'ArrowDown') event.preventDefault();
     gesture();
-    if (action === 'left' || action === 'right') {
+    if (action === 'left' || action === 'right' || action === 'jump') {
       if (!held[action]) held[action] = true;
+      if (action === 'jump' && !event.repeat) pressed.jump = true;
       return;
     }
     if (!event.repeat) pressed[action] = true;
@@ -48,7 +50,7 @@ export function createInput(canvas, onFirstGesture) {
   function keyUp(event) {
     const action = KEYMAP[event.code];
     if (!action) return;
-    if (action === 'left' || action === 'right') held[action] = false;
+    if (action === 'left' || action === 'right' || action === 'jump') held[action] = false;
   }
 
   function pointerDown() {
@@ -61,14 +63,17 @@ export function createInput(canvas, onFirstGesture) {
   canvas.addEventListener('pointerdown', pointerDown);
   canvas.tabIndex = 0;
 
-  /** The frame's input for the world. Edges are consumed: each is true once. */
+  /** The frame's input for the world. Edges are consumed: each is true once.
+   * `jumpHeld` stays true while the jump key is down (variable jump height). */
   function read() {
     const move = (held.right ? 1 : 0) - (held.left ? 1 : 0);
     const out = {
       move,
-      jump: pressed.jump, slash: pressed.slash, heavy: pressed.heavy,
+      jump: pressed.jump, jumpHeld: held.jump,
+      slash: pressed.slash, heavy: pressed.heavy,
       special: pressed.special, dash: pressed.dash,
       pause: pressed.pause, confirm: pressed.confirm, mute: pressed.mute,
+      diff1: pressed.diff1, diff2: pressed.diff2, diff3: pressed.diff3,
     };
     for (const key of Object.keys(pressed)) pressed[key] = false;
     return out;

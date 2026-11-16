@@ -18,6 +18,7 @@ const FILES = {
   kaijuFire: 'assets/kaiju-fire.png',
   kaijuSea: 'assets/kaiju-sea.png',
   kaijuDragon: 'assets/kaiju-dragon.png',
+  bgEdo: 'assets/bg-edo.jpg',
 };
 
 const TIMEOUT_MS = 5000;

@@ -4,7 +4,7 @@
 // Screens: title -> select -> play -> paused -> over. ?shot=title|select|
 // fight|victory|defeat stages one deterministic scene for a screenshot
 // instead of starting the loop.
-import { BEST_KEY, SAMURAI_ORDER, STEP } from './config.js';
+import { BEST_KEY, DIFFICULTY_ORDER, KAIJU_ORDER, SAMURAI_ORDER, STEP } from './config.js';
 import { createRandom } from './random.js';
 import {
   EVENT_BOLT,
@@ -50,6 +50,11 @@ let screen = 'title';
 let best = 0;
 /** Which samurai is highlighted on the select screen (index into SAMURAI_ORDER). */
 let selection = 0;
+/** Which kaiju is highlighted (index into KAIJU_ORDER) — the player picks
+ * their storm now instead of drawing it at random. */
+let kaijuSelection = 0;
+/** Which difficulty is highlighted (index into DIFFICULTY_ORDER). */
+let diffSelection = 1;
 let lastMove = 0;
 try {
   best = Number(window.localStorage.getItem(BEST_KEY) || 0) || 0;
@@ -143,10 +148,11 @@ function startFight() {
   announce('The fight begins. Three minutes on the clock.');
 }
 
-/** The player picked a samurai; the kaiju is drawn at random (1/3 each). */
+/** The player picked a samurai, a kaiju and a difficulty — start the duel. */
 function confirmSelection() {
   const samuraiId = SAMURAI_ORDER[selection];
-  const kaijuId = world.pickKaiju();
+  const kaijuId = KAIJU_ORDER[kaijuSelection];
+  world.setDifficulty(DIFFICULTY_ORDER[diffSelection]);
   world.setMatch(samuraiId, kaijuId);
   audio.sfx.click();
   startFight();
@@ -202,6 +208,20 @@ if (shot) {
         audio.sfx.click();
       }
       lastMove = inputState.move;
+      // W/S cycles the kaiju (jump = up, dash = down — they do nothing
+      // else on this screen).
+      if (inputState.jump) {
+        kaijuSelection = (kaijuSelection + 1) % KAIJU_ORDER.length;
+        audio.sfx.click();
+      }
+      if (inputState.dash) {
+        kaijuSelection = (kaijuSelection + KAIJU_ORDER.length - 1) % KAIJU_ORDER.length;
+        audio.sfx.click();
+      }
+      // 1/2/3 picks the difficulty directly.
+      if (inputState.diff1) { diffSelection = 0; audio.sfx.click(); }
+      if (inputState.diff2) { diffSelection = 1; audio.sfx.click(); }
+      if (inputState.diff3) { diffSelection = 2; audio.sfx.click(); }
       if (inputState.confirm) confirmSelection();
       else world.state.elapsed += dtReal;
     } else if (screen === 'play') {
@@ -240,7 +260,7 @@ if (shot) {
       }
     }
 
-    renderer.render(world.state, screen, dtReal, best, SAMURAI_ORDER[selection]);
+    renderer.render(world.state, screen, dtReal, best, SAMURAI_ORDER[selection], KAIJU_ORDER[kaijuSelection], DIFFICULTY_ORDER[diffSelection]);
     window.requestAnimationFrame(frame);
   }
 

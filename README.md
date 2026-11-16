@@ -8,19 +8,23 @@ A lone samurai — a ronin with nothing left to lose — duels **a kaiju**, in a
 dusk. Three minutes on the clock, three boss phases, one blade. Named for the moment after ruin, when a fighter starts from zero.
 
 A make.fun **best-game-01** entry. The game is plain static files — no
-library, no network request. The two samurai, the three kaiju and the four
-attack effects are raster art in `game/assets/`; the town and the sky are
-drawn in code; every sound is synthesised with Web Audio. If a raster asset
-fails to load, the game falls back to the code-drawn pixel sprites.
+library, no network request. The two samurai, the three kaiju, the four
+attack effects and the Edo dusk backdrop are raster art in `game/assets/`;
+every sound is synthesised with Web Audio. If a raster asset fails to load,
+the game falls back to the code-drawn pixel sprites.
 
-## Choose your samurai — the kaiju is drawn at random
+## Choose your samurai, your kaiju, your difficulty
 
 - **Hayate, the Blue Samurai** — calm as the moon, a blade of light. (Hayate 疾風 = swift wind, gale)
 - **Enjin, the Red Samurai** — burning like fire, a blade of embers. (Enjin 炎刃 = flame blade)
-- Both share one moveset. The boss is drawn at random, equal chance (1/3
-  each): **KAGUTSUCHI, the Fire Kaiju** (claws and fireballs),
-  **UMIBOZU, the Sea Kaiju** (rams and tsunamis), or **SANRYU, the
-  Three-Headed Dragon** (bites and gales).
+- **Pick your kaiju** (W / S): **KAGUTSUCHI, the Fire Kaiju** (claws and
+  fireballs), **UMIBOZU, the Sea Kaiju** (rams and tsunamis), or **SANRYU,
+  the Three-Headed Dragon** (bites and gales). No longer random — the duel
+  is the one you choose.
+- **Pick your difficulty** (1 / 2 / 3): **Easy** (65% win chance — learn the
+  duel), **Medium** (45% — a fair duel), **Hard** (35% — no mercy). Each
+  scales the ronin's HP, the kaiju's HP and damage, how fast it attacks,
+  and how fast it moves.
 
 ## Play
 
@@ -32,8 +36,8 @@ node serve.ts
 
 | Key | Action |
 | --- | ------ |
-| A / D or ← / → | Move |
-| Space / W / ↑ | Jump (coyote time + input buffer) |
+| A / D or ← / → | Move (smooth acceleration — the ronin has weight) |
+| Space / W / ↑ | Jump (coyote time + input buffer; release early for a short hop) |
 | J | Katana slash |
 | K | Heavy iaido draw (slower, harder) |
 | L | Fireball (costs 1 energy cell; landing hits charge cells) |
@@ -41,6 +45,9 @@ node serve.ts
 | Esc / P | Pause |
 | Enter | Start / restart |
 | M | Mute |
+
+On the select screen: **A / D** chooses the samurai, **W / S** chooses the
+kaiju, **1 / 2 / 3** chooses the difficulty, **Enter** starts the fight.
 
 ## The duel
 

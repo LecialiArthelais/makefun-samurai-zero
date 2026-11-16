@@ -6,7 +6,7 @@
 // knowing about screens or sound. Nothing here allocates after createWorld
 // returns; every random choice comes from the seeded generator passed in,
 // so the same seed always plays the same fight.
-import { FIELD, KAIJU_ORDER, KAIJU_TYPES, RAIJU, RONIN, SAMURAI_VARIANTS, SCORE, STEP, TIME_LIMIT } from './config.js';
+import { DIFFICULTY, FIELD, KAIJU_ORDER, KAIJU_TYPES, RAIJU, RONIN, SAMURAI_VARIANTS, SCORE, STEP, TIME_LIMIT } from './config.js';
 
 export const EVENT_SLASH = 1;
 export const EVENT_HEAVY = 2;
@@ -78,7 +78,19 @@ export function createWorld(random) {
     combo: 0, comboTimer: 0, comboBest: 0,
     /** The match: which samurai the player picked, which kaiju was drawn. */
     samurai: 'blue', kaiju: 'fire',
+    /** Difficulty: easy / medium / hard (see DIFFICULTY in config.js). */
+    difficulty: 'medium',
   };
+
+  /** The active difficulty's scaling numbers. */
+  function diff() {
+    return DIFFICULTY[state.difficulty] || DIFFICULTY.medium;
+  }
+
+  /** Pick the difficulty for the next fight (easy / medium / hard). */
+  function setDifficulty(id) {
+    if (DIFFICULTY[id]) state.difficulty = id;
+  }
 
   /** One seeded draw over the three kaiju: equal chance, 1/3 each. */
   function pickKaiju() {
@@ -94,11 +106,11 @@ export function createWorld(random) {
 
   function reset() {
     ronin.x = 300; ronin.y = FIELD.groundY; ronin.vx = 0; ronin.vy = 0; ronin.facing = 1;
-    ronin.hp = RONIN.hp; ronin.invulnerable = 0; ronin.onGround = true;
+    ronin.hp = diff().roninHp; ronin.invulnerable = 0; ronin.onGround = true;
     ronin.coyote = 0; ronin.jumpBuffer = 0;
     ronin.slashTimer = 0; ronin.heavyTimer = 0; ronin.specialTimer = 0; ronin.dashTimer = 0; ronin.dashTime = 0;
     ronin.energy = 1; ronin.energyHits = 0; ronin.slashBuffer = 0; ronin.heavyBuffer = 0; ronin.pose = 'idle'; ronin.poseTime = 0; ronin.animTime = 0;
-    raiju.x = 980; raiju.y = FIELD.groundY; raiju.hp = RAIJU.hp; raiju.phase = 1;
+    raiju.x = 980; raiju.y = FIELD.groundY; raiju.hp = diff().raijuHp; raiju.phase = 1;
     raiju.state = 'idle'; raiju.stateTime = 0; raiju.restTimer = 1.4;
     raiju.attack = null; raiju.headRear = 0; raiju.bodyDrop = 0; raiju.flash = 0; raiju.aura = 0; raiju.leaping = false;
     for (const p of particles) p.active = false;
@@ -185,7 +197,9 @@ export function createWorld(random) {
 
   function hurtRonin(amount, x, y) {
     if (ronin.invulnerable > 0 || ronin.dashTime > 0 || state.over) return false;
-    ronin.hp = Math.max(0, ronin.hp - amount);
+    // Difficulty scales how hard the kaiju hits.
+    const scaled = Math.max(1, Math.round(amount * diff().damageScale));
+    ronin.hp = Math.max(0, ronin.hp - scaled);
     ronin.invulnerable = RONIN.invulnerable;
     ronin.pose = 'hurt';
     ronin.poseTime = 0.25;
@@ -193,7 +207,7 @@ export function createWorld(random) {
     // Getting hit breaks the combo.
     state.combo = 0;
     state.comboTimer = 0;
-    spawnNumber(ronin.x, ronin.y - 80, `-${amount}`, '#e05243');
+    spawnNumber(ronin.x, ronin.y - 80, `-${scaled}`, '#e05243');
     burst(ronin.x, ronin.y - 32, 12, 260, 0.5, 3, '#e05243', 300);
     return true;
   }
@@ -282,7 +296,8 @@ export function createWorld(random) {
   function updateRaiju(dt) {
     raiju.stateTime += dt;
     if (raiju.flash > 0) raiju.flash = Math.max(0, raiju.flash - dt);
-    const speed = RAIJU.speedScale[raiju.phase - 1];
+    // Difficulty scales how fast the kaiju moves and attacks.
+    const speed = RAIJU.speedScale[raiju.phase - 1] * diff().speedScale;
     if (raiju.leaping) {
       raiju.x += raiju.leapVx * dt;
       raiju.y += raiju.leapVy * dt;
@@ -309,9 +324,18 @@ export function createWorld(random) {
       raiju.headRear = Math.max(0, raiju.headRear - dt * 3);
       raiju.bodyDrop = Math.max(0, raiju.bodyDrop - dt * 3);
       raiju.restTimer -= dt;
-      // Drift back toward its hunting ground, slowly.
-      const home = 980;
-      raiju.x += Math.max(-30, Math.min(30, home - raiju.x)) * dt * 0.5;
+      // Stalk: the kaiju slowly advances toward the ronin while it rests,
+      // so the duel moves and the pressure never lets up. It stops close
+      // in (inside swipe range it holds its ground and attacks instead).
+      const stalkDist = Math.abs(ronin.x - raiju.x);
+      if (stalkDist > 260) {
+        const dir = ronin.x > raiju.x ? 1 : -1;
+        raiju.x += dir * RAIJU.stalkSpeed * diff().speedScale * dt;
+      } else {
+        // Drift back toward its hunting ground, slowly.
+        const home = 980;
+        raiju.x += Math.max(-30, Math.min(30, home - raiju.x)) * dt * 0.5;
+      }
       if (raiju.restTimer <= 0) startAttack(pickAttack());
     } else if (raiju.state === 'telegraph') {
       const telegraph = raiju.attack === 'swipe' ? RAIJU.swipeTelegraph / speed
@@ -322,7 +346,8 @@ export function createWorld(random) {
     } else if (raiju.state === 'recover') {
       raiju.headRear = Math.max(0, raiju.headRear - dt * 3);
       raiju.bodyDrop = Math.max(0, raiju.bodyDrop - dt * 3);
-      if (raiju.stateTime >= RAIJU.restAfter[raiju.phase - 1]) {
+      // Difficulty scales how long the kaiju rests between attacks.
+      if (raiju.stateTime >= RAIJU.restAfter[raiju.phase - 1] * diff().restScale) {
         raiju.state = 'idle';
         raiju.stateTime = 0;
         raiju.restTimer = 0.3 + random() * 0.5;
@@ -450,7 +475,13 @@ export function createWorld(random) {
       ronin.dashTime -= dt;
       ronin.vx = ronin.facing * RONIN.dashSpeed;
     } else if (!locked) {
-      ronin.vx = input.move * RONIN.runSpeed;
+      // Smooth movement: the ronin accelerates toward the run speed and
+      // decelerates when the key is released, instead of snapping to full
+      // speed in one frame. The weight reads in the run and in the stop.
+      const targetVx = input.move * RONIN.runSpeed;
+      const rate = input.move !== 0 ? RONIN.accel : RONIN.decel;
+      if (ronin.vx < targetVx) ronin.vx = Math.min(targetVx, ronin.vx + rate * dt);
+      else if (ronin.vx > targetVx) ronin.vx = Math.max(targetVx, ronin.vx - rate * dt);
       ronin.moving = input.move !== 0;
     } else {
       ronin.vx = 0;
@@ -475,6 +506,12 @@ export function createWorld(random) {
       burst(ronin.x, FIELD.groundY, 6, 120, 0.4, 3, '#b8a8c8', 100);
     }
     ronin.vy += RONIN.gravity * dt;
+    // Variable jump height: releasing the jump key early cuts the rise
+    // short, so a tap hops and a hold soars. The jump feels responsive
+    // instead of floaty.
+    if (ronin.vy < RONIN.jumpCutVelocity && input.jumpHeld === false) {
+      ronin.vy = RONIN.jumpCutVelocity;
+    }
     ronin.y += ronin.vy * dt;
     if (ronin.y >= FIELD.groundY) {
       if (!ronin.onGround && ronin.vy > 300) burst(ronin.x, FIELD.groundY, 5, 100, 0.35, 3, '#b8a8c8', 100);
@@ -610,5 +647,5 @@ export function createWorld(random) {
   }
 
   reset();
-  return { state, reset, step, setMatch, pickKaiju };
+  return { state, reset, step, setMatch, pickKaiju, setDifficulty };
 }

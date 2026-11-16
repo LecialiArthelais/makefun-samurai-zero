@@ -11,11 +11,49 @@ export const STEP = 1 / 60;
 /** Seconds on the clock. Win by felling Raiju before it runs out. */
 export const TIME_LIMIT = 180;
 
+/** The three difficulties. The win chances are the design targets for a
+ * human player who knows the moves: Easy is winnable by most (65%),
+ * Medium is a real fight (45%), Hard is for players who have mastered the
+ * duel (35%). The scaling is applied in world.js (reset + damage): ronin
+ * HP, kaiju HP, kaiju damage, how long the kaiju rests between attacks,
+ * and how fast it moves. Medium is the baseline the game shipped with. */
+export const DIFFICULTY = {
+  easy: {
+    id: 'easy', name: 'EASY', title: 'Easy',
+    tagline: 'Learn the duel.',
+    winChance: 65,
+    roninHp: 170, raijuHp: 1080, damageScale: 0.85, restScale: 1.2, speedScale: 0.95,
+  },
+  medium: {
+    id: 'medium', name: 'MEDIUM', title: 'Medium',
+    tagline: 'A fair duel.',
+    winChance: 45,
+    roninHp: 145, raijuHp: 1250, damageScale: 1.05, restScale: 0.95, speedScale: 1.02,
+  },
+  hard: {
+    id: 'hard', name: 'HARD', title: 'Hard',
+    tagline: 'No mercy.',
+    winChance: 35,
+    roninHp: 140, raijuHp: 1450, damageScale: 1.1, restScale: 0.92, speedScale: 1.05,
+  },
+};
+export const DIFFICULTY_ORDER = ['easy', 'medium', 'hard'];
+
 export const RONIN = {
   width: 72,
   height: 118,
   runSpeed: 340,
+  /** Smooth movement: the ronin accelerates toward the run speed and
+   * decelerates when the key is released, instead of snapping to full
+   * speed in one frame. Higher = snappier, lower = heavier, more weight.
+   * Tuned so the duel stays responsive: the ronin reaches full speed in
+   * ~0.06s and stops in ~0.04s, so a dodge still lands in time. */
+  accel: 6000,
+  decel: 8000,
   jumpVelocity: -880,
+  /** Releasing jump early cuts the rise short (variable jump height):
+   * the jump feels responsive instead of floaty. */
+  jumpCutVelocity: -320,
   gravity: 2400,
   /** Seconds of mercy after a hit lands. */
   invulnerable: 1.1,
@@ -126,6 +164,9 @@ export const RAIJU = {
   speedScale: [1, 1.25, 1.55],
   /** Contact damage when the ronin touches Raiju's body. */
   touchDamage: 10,
+  /** Stalk: while idle, the kaiju slowly advances toward the ronin instead
+   * of standing still — the duel moves, the pressure never lets up. */
+  stalkSpeed: 42,
 };
 
 /** Score: damage dealt, plus bonuses. */

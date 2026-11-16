@@ -36,6 +36,7 @@ export function createAutopilot() {
     return {
       move,
       jump: waveNear && r.onGround,
+      jumpHeld: true,
       slash: dist < 160 && (k.state === 'recover' || k.state === 'idle') && frame % 18 === 0,
       heavy: dist < 180 && k.state === 'recover' && frame % 60 === 0,
       special: r.energy >= 1 && dist < 500 && frame % 240 === 0,
@@ -52,7 +53,7 @@ export function stageShot(name, world) {
   world.reset();
   if (name === 'select') {
     // The select screen, blue highlighted, the duelists standing off.
-    const idle = { move: 0, jump: false, slash: false, heavy: false, special: false, dash: false };
+    const idle = { move: 0, jump: false, jumpHeld: false, slash: false, heavy: false, special: false, dash: false };
     for (let index = 0; index < TITLE_SECONDS / STEP; index += 1) world.step(STEP, idle);
     return { screen: 'select', best: 0, selection: 'blue' };
   }
@@ -66,7 +67,7 @@ export function stageShot(name, world) {
         // Let the slash arc swing past the impact and the hit flash fade, so
         // the frame shows the blade mid-arc, the damage number still rising,
         // and Raiju himself readable instead of white-hot.
-        const idle = { move: 0, jump: false, slash: false, heavy: false, special: false, dash: false };
+        const idle = { move: 0, jump: false, jumpHeld: false, slash: false, heavy: false, special: false, dash: false };
         for (let j = 0; j < 8; j += 1) world.step(STEP, idle);
         break;
       }
@@ -94,14 +95,14 @@ export function stageShot(name, world) {
       if (phase === 'retreat') {
         if (dist > 420) {
           phase = 'fire';
-          return { move: 0, jump: false, slash: false, heavy: false, special: true, dash: false };
+          return { move: 0, jump: false, jumpHeld: false, slash: false, heavy: false, special: true, dash: false };
         }
         const away = k.x > r.x ? -1 : 1;
-        return { move: away, jump: false, slash: false, heavy: false, special: false, dash: false };
+        return { move: away, jump: false, jumpHeld: false, slash: false, heavy: false, special: false, dash: false };
       }
-      return { move: 0, jump: false, slash: false, heavy: false, special: true, dash: false };
+      return { move: 0, jump: false, jumpHeld: false, slash: false, heavy: false, special: true, dash: false };
     };
-    const idle = { move: 0, jump: false, slash: false, heavy: false, special: false, dash: false };
+    const idle = { move: 0, jump: false, jumpHeld: false, slash: false, heavy: false, special: false, dash: false };
     for (let index = 0; index < LIMIT_SECONDS / STEP; index += 1) {
       world.step(STEP, pilot(world.state));
       const proj = world.state.projectiles.find((p) => p.active);
@@ -134,7 +135,7 @@ export function stageShot(name, world) {
   }
   if (name === 'defeat') {
     world.setMatch('blue', 'dragon');
-    const idle = { move: 0, jump: false, slash: false, heavy: false, special: false, dash: false };
+    const idle = { move: 0, jump: false, jumpHeld: false, slash: false, heavy: false, special: false, dash: false };
     for (let index = 0; index < LIMIT_SECONDS / STEP; index += 1) {
       const events = world.step(STEP, idle);
       if (events & EVENT_LOSE) break;
@@ -144,7 +145,7 @@ export function stageShot(name, world) {
   }
   // Title: a couple of seconds in, so the embers have drifted and the idle
   // animation is mid-frame, the duelists still standing off.
-  const idle = { move: 0, jump: false, slash: false, heavy: false, special: false, dash: false };
+  const idle = { move: 0, jump: false, jumpHeld: false, slash: false, heavy: false, special: false, dash: false };
   for (let index = 0; index < TITLE_SECONDS / STEP; index += 1) world.step(STEP, idle);
   return { screen: 'title', best: 0 };
 }
