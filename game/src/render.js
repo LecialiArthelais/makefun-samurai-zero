@@ -510,124 +510,376 @@ export function createRenderer(canvas, assets) {
   }
 
   // ---------------------------------------------------------- HUD
-  function drawBar(x, y, w, h, ratio, good, warn, bad) {
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-    ctx.fillStyle = ratio > 0.5 ? good : ratio > 0.25 ? warn : bad;
-    ctx.fillRect(x, y, Math.max(0, w * ratio), h);
+  // Damage ghosts: the pale segment a Tekken-style bar leaves behind
+  // after a hit, shrinking back to the true HP after a short hold.
+  // Kept in the renderer closure — a new round snaps them back to full.
+  let ghostRonin = 1;
+  let ghostKaiju = 1;
+  let ghostRoninAt = -10;
+  let ghostKaijuAt = -10;
+  let lastRRatio = 1;
+  let lastKRatio = 1;
+
+  function roundRectPath(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
   }
 
-  function drawHud(state, screen) {
+  function diamondPath(cx, cy, r) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx + r, cy);
+    ctx.lineTo(cx, cy + r);
+    ctx.lineTo(cx - r, cy);
+    ctx.closePath();
+  }
+
+  // A Tekken-style slanted HP bar: a parallelogram from the outer end
+  // (xOuter, yOuter, by the portrait) to the inner end (xInner, yInner,
+  // toward the timer), height h. The fill hugs the outer end and drains
+  // from the inner end; the pale ghost trails behind it. Segment lines
+  // every 25% of max HP. `gradStops` are [offset, color] pairs for the
+  // fill gradient, running outer -> inner. When lowHp, the border
+  // pulses red with the given pulse alpha.
+  function drawSlantedBar(xOuter, yOuter, xInner, yInner, h, ratio, ghost, maxHp, gradStops, lowHp, pulse) {
+    const len = Math.abs(xInner - xOuter);
+    const dir = xInner > xOuter ? 1 : -1;
+    const top = Math.min(yOuter, yInner);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(xOuter, yOuter);
+    ctx.lineTo(xInner, yInner);
+    ctx.lineTo(xInner, yInner + h);
+    ctx.lineTo(xOuter, yOuter + h);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fill();
+    ctx.clip();
+    // Ghost: pale segment between the true edge and the ghost edge.
+    // It anchors at the outer end (portrait side) in both orientations,
+    // so it trails behind the fill on the mirrored (kaiju) bar too.
+    if (ghost > ratio + 0.005) {
+      ctx.fillStyle = 'rgba(255,240,180,0.9)';
+      const a = xOuter + dir * len * ratio;
+      const b = xOuter + dir * len * Math.min(1, ghost);
+      ctx.fillRect(Math.min(a, b), top - 4, Math.abs(b - a) + 1, h + 8);
+    }
+    // Fill: gradient anchored at the outer end.
+    const grad = ctx.createLinearGradient(xOuter, 0, xInner, 0);
+    for (const [off, color] of gradStops) grad.addColorStop(off, color);
+    ctx.fillStyle = grad;
+    if (dir > 0) ctx.fillRect(xOuter, top - 4, Math.max(0, len * ratio), h + 8);
+    else ctx.fillRect(xInner + len * (1 - ratio), top - 4, Math.max(0, len * ratio), h + 8);
+    // Segment lines every 25% of max HP, measured from the outer end.
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    for (const f of [0.25, 0.5, 0.75]) {
+      const sx = xOuter + dir * len * f;
+      ctx.fillRect(sx - 0.5, top - 2, 1, h + 4);
+    }
+    ctx.restore();
+    // Border: dark, or pulsing red under 25% HP.
+    ctx.beginPath();
+    ctx.moveTo(xOuter, yOuter);
+    ctx.lineTo(xInner, yInner);
+    ctx.lineTo(xInner, yInner + h);
+    ctx.lineTo(xOuter, yOuter + h);
+    ctx.closePath();
+    ctx.strokeStyle = lowHp ? `rgba(224,82,67,${pulse})` : 'rgba(0,0,0,0.65)';
+    ctx.lineWidth = lowHp ? 3 : 2;
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+
+  function drawHud(state, screen, dt, ui) {
     const r = state.ronin;
     const k = state.raiju;
     const sam = SAMURAI_VARIANTS[state.samurai || 'blue'];
     const kai = KAIJU_TYPES[state.kaiju || 'fire'];
-    // Samurai portrait + HP + energy (top-left). The raster portrait when
-    // it loaded, the code-drawn one otherwise.
+    const diff = DIFFICULTY[state.difficulty] || DIFFICULTY.medium;
+    const maxHp = diff.roninHp;
+    const maxKaijuHp = diff.raijuHp;
+    const coins = ui && ui.save ? ui.save.coins : 0;
+    // Tekken-style plates: 460 px slanted bars, portrait at the outer
+    // corner, draining from the inner end toward the timer.
+    const BAR_LEN = 460;
+    const BAR_H = 20;
+    const SLANT = 12;
+    // Damage ghosts: hold 0.35 s after a hit, then shrink to the true HP.
+    const rRatio = Math.max(0, Math.min(1, r.hp / maxHp));
+    const kRatio = Math.max(0, Math.min(1, k.hp / maxKaijuHp));
+    if (rRatio < lastRRatio) ghostRoninAt = state.elapsed;
+    if (kRatio < lastKRatio) ghostKaijuAt = state.elapsed;
+    if (rRatio > ghostRonin) ghostRonin = rRatio;
+    if (kRatio > ghostKaiju) ghostKaiju = kRatio;
+    if (state.elapsed - ghostRoninAt > 0.35) ghostRonin = Math.max(rRatio, ghostRonin - (dt || 0) * 0.3);
+    if (state.elapsed - ghostKaijuAt > 0.35) ghostKaiju = Math.max(kRatio, ghostKaiju - (dt || 0) * 0.3);
+    lastRRatio = rRatio;
+    lastKRatio = kRatio;
+    const lowPulse = 0.55 + 0.45 * Math.sin(state.elapsed * 9);
+    const surgePulse = 0.55 + 0.45 * Math.sin(state.elapsed * 6);
+    // ---- Player plate (left). Portrait in a slanted frame at the outer
+    // corner; the raster portrait when it loaded, the code-drawn one
+    // otherwise.
     const portrait = heroPortrait(state);
-    if (portrait) {
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fillRect(22, 10, 52, 52);
-      ctx.strokeStyle = PALETTE.panelEdge;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(22, 10, 52, 52);
-      drawRaster(portrait, 48, 60, 48);
-    } else {
-      drawPixelSpriteAt(ctx, SPRITES.portraits.hero, 24, 12, 3);
-    }
-    ctx.fillStyle = PALETTE.text;
-    ctx.font = `bold 15px ${FONT}`;
-    ctx.fillText(sam.name, 84, 30);
-    const maxHp = (DIFFICULTY[state.difficulty] || DIFFICULTY.medium).roninHp;
-    drawBar(84, 38, 200, 14, r.hp / maxHp, PALETTE.hpGood, PALETTE.hpWarn, PALETTE.hpBad);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(14, 12);
+    ctx.lineTo(78, 20);
+    ctx.lineTo(78, 76);
+    ctx.lineTo(14, 68);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fill();
+    ctx.clip();
+    if (portrait) ctx.drawImage(portrait, 14, 12, 64, 64);
+    ctx.restore();
+    if (!portrait) drawPixelSpriteAt(ctx, SPRITES.portraits.hero, 24, 12, 3);
+    ctx.beginPath();
+    ctx.moveTo(14, 12);
+    ctx.lineTo(78, 20);
+    ctx.lineTo(78, 76);
+    ctx.lineTo(14, 68);
+    ctx.closePath();
+    ctx.strokeStyle = PALETTE.panelEdge;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    drawSlantedBar(88, 20, 88 + BAR_LEN, 20 + SLANT, BAR_H, rRatio, ghostRonin, maxHp,
+      [[0, PALETTE.sunCore], [0.5, PALETTE.spark], [1, PALETTE.horizon]], rRatio < 0.25, lowPulse);
     ctx.font = `13px ${FONT}`;
-    ctx.fillText(`${Math.max(0, Math.ceil(r.hp))} / ${maxHp}`, 292, 51);
+    ctx.fillStyle = rRatio < 0.25 ? PALETTE.hpBad : PALETTE.text;
+    ctx.textAlign = 'right';
+    ctx.fillText(`${Math.max(0, Math.ceil(r.hp))} / ${maxHp}`, 548, 68);
+    ctx.textAlign = 'left';
+    // Big name + style tag + samurai-colour accent line.
+    ctx.fillStyle = PALETTE.text;
+    ctx.font = `bold 26px ${FONT}`;
+    ctx.fillText(sam.name, 88, 96);
+    ctx.font = `11px ${FONT}`;
+    ctx.fillStyle = PALETTE.muted;
+    ctx.fillText(sam.style.split(' ')[0], 88, 114);
+    ctx.fillStyle = state.samurai === 'red' ? PALETTE.fire : PALETTE.energy;
+    ctx.fillRect(88, 120, 120, 2);
+    // EMBER meter: thin bar + energy-cell pips.
+    ctx.font = `11px ${FONT}`;
+    ctx.fillStyle = PALETTE.muted;
+    ctx.fillText(state.samurai === 'red' ? 'EMBER' : 'MOONLIGHT', 88, 140);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(170, 132, 140, 6);
+    ctx.fillStyle = PALETTE.energy;
+    ctx.fillRect(170, 132, Math.max(0, 140 * r.energy / RONIN.maxCells), 6);
     for (let i = 0; i < RONIN.maxCells; i += 1) {
       ctx.fillStyle = i < r.energy ? PALETTE.energy : 'rgba(126,200,255,0.25)';
       ctx.beginPath();
-      ctx.arc(96 + i * 26, 70, 8, 0, Math.PI * 2);
+      ctx.arc(326 + i * 18, 135, 5, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.fillStyle = PALETTE.muted;
-    ctx.fillText(state.samurai === 'red' ? 'EMBER' : 'MOONLIGHT', 178, 74);
-    // Round pips: one small circle per round the match needs, filled for
-    // each round the samurai has won — the fighting-game standard.
-    for (let i = 0; i < state.winsNeeded; i += 1) {
-      ctx.fillStyle = i < state.roundWins.ronin ? PALETTE.spark : 'rgba(243,234,216,0.25)';
-      ctx.beginPath();
-      ctx.arc(92 + i * 18, 92, 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Timer + score (top-centre).
+    // Timer in an enso brush-ring, score + coins under it, round-win
+    // diamonds flanking the ring, round + match format under that.
     const t = Math.max(0, Math.ceil(state.timeLeft));
     const mm = String(Math.floor(t / 60));
     const ss = String(t % 60).padStart(2, '0');
+    const ringX = FIELD.width / 2;
+    const ringY = 40;
+    const ringR = 32;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = PALETTE.spark;
+    ctx.globalAlpha = state.surge ? 0.65 + 0.35 * Math.sin(state.elapsed * 3) : 0.9;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(ringX, ringY, ringR, Math.PI * 0.15, Math.PI * 1.85);
+    ctx.stroke();
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(ringX, ringY, ringR - 6, Math.PI * 0.3, Math.PI * 1.7);
+    ctx.stroke();
+    ctx.restore();
+    if (state.surge) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#ff5a2a';
+      ctx.globalAlpha = 0.35 + 0.35 * Math.sin(state.elapsed * 3);
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(ringX, ringY, ringR, Math.PI * 0.15, Math.PI * 1.85);
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.textAlign = 'center';
-    ctx.font = `bold 30px ${FONT}`;
+    ctx.font = `bold 26px ${FONT}`;
     ctx.fillStyle = t <= 30 ? PALETTE.hpBad : PALETTE.text;
-    ctx.fillText(`${mm}:${ss}`, FIELD.width / 2, 44);
-    ctx.font = `bold 16px ${FONT}`;
+    ctx.fillText(`${mm}:${ss}`, ringX, ringY + 9);
+    ctx.font = `bold 14px ${FONT}`;
     ctx.fillStyle = PALETTE.text;
-    ctx.fillText(`SCORE ${state.score}`, FIELD.width / 2, 68);
+    ctx.fillText(`SCORE ${state.score}`, ringX, 90);
+    // Coins pill under the score.
+    roundRectPath(ringX - 62, 98, 124, 18, 9);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.spark;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.font = `bold 12px ${FONT}`;
+    ctx.fillStyle = PALETTE.spark;
+    ctx.fillText(`COINS ${coins.toLocaleString('en-US')}`, ringX, 111);
+    // Round + match format, one line.
+    ctx.font = `12px ${FONT}`;
+    ctx.fillStyle = PALETTE.muted;
+    ctx.fillText(`ROUND ${state.round}  •  BEST OF ${state.winsNeeded === 2 ? 3 : 5}`, ringX, 134);
+    // Round-win diamonds flanking the ring (Bo3: 2 per side; Bo5: 3).
+    for (let i = 0; i < state.winsNeeded; i += 1) {
+      const off = (i - (state.winsNeeded - 1) / 2) * 20;
+      diamondPath(ringX - 62 + off, ringY, 7);
+      if (i < state.roundWins.ronin) { ctx.fillStyle = PALETTE.spark; ctx.fill(); }
+      else {
+        ctx.fillStyle = 'rgba(243,234,216,0.12)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(243,234,216,0.35)';
+        ctx.stroke();
+      }
+      diamondPath(ringX + 62 + off, ringY, 7);
+      if (i < state.roundWins.raiju) { ctx.fillStyle = kai.aura; ctx.fill(); }
+      else {
+        ctx.fillStyle = 'rgba(243,234,216,0.12)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(243,234,216,0.35)';
+        ctx.stroke();
+      }
+    }
     // Combo: consecutive hits within the window raise the score multiplier.
     // Shown once the chain is worth noticing, with the time left to keep it.
     if (state.combo >= 2) {
       const mult = 1 + Math.min(Math.floor(state.combo / SCORE.comboStep), SCORE.comboMax - 1);
       ctx.font = `bold 16px ${FONT}`;
       ctx.fillStyle = mult >= SCORE.comboMax ? PALETTE.spark : PALETTE.text;
-      ctx.fillText(`COMBO x${state.combo}  (x${mult})`, FIELD.width / 2, 92);
+      ctx.fillText(`COMBO x${state.combo}  (x${mult})`, ringX, 168);
       const barW = 120;
       ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      ctx.fillRect(FIELD.width / 2 - barW / 2, 100, barW, 4);
+      ctx.fillRect(ringX - barW / 2, 176, barW, 4);
       ctx.fillStyle = PALETTE.spark;
-      ctx.fillRect(FIELD.width / 2 - barW / 2, 100, barW * Math.max(0, state.comboTimer / SCORE.comboWindow), 4);
+      ctx.fillRect(ringX - barW / 2, 176, barW * Math.max(0, state.comboTimer / SCORE.comboWindow), 4);
     }
     ctx.textAlign = 'left';
-    // Kaiju portrait + HP + phase (top-right). The raster kaiju when it
-    // loaded, the code-drawn portrait otherwise.
+    // ---- Kaiju plate (right, mirrored). Portrait is a crop of the kaiju
+    // sprite — no new asset. The raster kaiju when it loaded, the
+    // code-drawn portrait otherwise.
     const kaijuKey = { fire: 'kaijuFire', sea: 'kaijuSea', dragon: 'kaijuDragon' }[state.kaiju || 'fire'];
     const kaijuImg = assets && assets[kaijuKey];
-    if (kaijuImg) {
-      drawRaster(kaijuImg, FIELD.width - 48, 60, 48);
-    } else {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(1266, 12);
+    ctx.lineTo(1202, 20);
+    ctx.lineTo(1202, 76);
+    ctx.lineTo(1266, 68);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fill();
+    ctx.clip();
+    if (kaijuImg) ctx.drawImage(kaijuImg, kaijuImg.width * 0.15, 0, kaijuImg.width * 0.7, kaijuImg.height * 0.5, 1202, 12, 64, 64);
+    ctx.restore();
+    if (!kaijuImg) {
       const kaiPortrait = SPRITES.portraits.kaiju[state.kaiju || 'fire'] || SPRITES.portraits.kaiju.fire;
       drawPixelSpriteAt(ctx, kaiPortrait, FIELD.width - 72, 12, 3);
     }
-    ctx.textAlign = 'right';
-    ctx.font = `bold 15px ${FONT}`;
-    ctx.fillStyle = PALETTE.text;
-    ctx.fillText(`${kai.name} — ${kai.title.toUpperCase()}`, FIELD.width - 84, 30);
-    const maxKaijuHp = (DIFFICULTY[state.difficulty] || DIFFICULTY.medium).raijuHp;
-    drawBar(FIELD.width - 284, 38, 200, 14, k.hp / maxKaijuHp, kai.aura, kai.aura, PALETTE.hpBad);
-    ctx.font = `13px ${FONT}`;
-    ctx.fillText(`PHASE ${k.phase} / 3`, FIELD.width - 84, 74);
-    // Difficulty, small, under the kaiju phase — the player always knows
-    // which storm they picked.
-    ctx.fillStyle = PALETTE.muted;
-    ctx.fillText((DIFFICULTY[state.difficulty] || DIFFICULTY.medium).name, FIELD.width - 84, 96);
-    // Round pips for the kaiju (right side), and the SURGE marker while
-    // the deciding round runs — the player always sees the stakes.
-    for (let i = 0; i < state.winsNeeded; i += 1) {
-      ctx.fillStyle = i < state.roundWins.raiju ? kai.aura : 'rgba(243,234,216,0.25)';
+    ctx.beginPath();
+    ctx.moveTo(1266, 12);
+    ctx.lineTo(1202, 20);
+    ctx.lineTo(1202, 76);
+    ctx.lineTo(1266, 68);
+    ctx.closePath();
+    ctx.strokeStyle = state.surge ? `rgba(255,90,42,${surgePulse})` : PALETTE.panelEdge;
+    ctx.lineWidth = state.surge ? 3 : 2;
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    drawSlantedBar(1192, 20, 1192 - BAR_LEN, 20 + SLANT, BAR_H, kRatio, ghostKaiju, maxKaijuHp,
+      [[0, PALETTE.sunCore], [0.5, PALETTE.spark], [1, kai.aura]], kRatio < 0.25, lowPulse);
+    // SURGE marker: pulsing frame + tag on the kaiju bar + the timer
+    // ring above already blinks — the player always sees the stakes.
+    if (state.surge) {
       ctx.beginPath();
-      ctx.arc(FIELD.width - 92 - i * 18, 92, 5, 0, Math.PI * 2);
+      ctx.moveTo(1192, 20);
+      ctx.lineTo(732, 32);
+      ctx.lineTo(732, 52);
+      ctx.lineTo(1192, 40);
+      ctx.closePath();
+      ctx.strokeStyle = `rgba(255,90,42,${surgePulse})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      roundRectPath(700, 56, 118, 20, 9);
+      ctx.fillStyle = 'rgba(192,57,43,0.95)';
+      ctx.fill();
+      ctx.font = `bold 12px ${FONT}`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText('SURGE +20%', 759, 70);
+      ctx.textAlign = 'left';
+    }
+    ctx.textAlign = 'right';
+    ctx.font = `bold 24px ${FONT}`;
+    ctx.fillStyle = PALETTE.text;
+    ctx.fillText(`${kai.name} — ${kai.title.toUpperCase()}`, 1192, 102);
+    // Phase pips: three dots, filled for phases already passed.
+    ctx.font = `12px ${FONT}`;
+    const phaseText = `PHASE ${k.phase} / 3`;
+    const phaseW = ctx.measureText(phaseText).width;
+    for (let i = 0; i < 3; i += 1) {
+      ctx.fillStyle = i < k.phase - 1 ? PALETTE.spark : 'rgba(243,234,216,0.25)';
+      ctx.beginPath();
+      ctx.arc(1192 - phaseW - 16 - (2 - i) * 18, 116, 5, 0, Math.PI * 2);
       ctx.fill();
     }
-    if (state.surge) {
-      ctx.fillStyle = kai.eye;
-      ctx.font = `bold 14px ${FONT}`;
-      ctx.fillText('◆ SURGE', FIELD.width - 284, 74);
-    }
+    ctx.fillStyle = PALETTE.muted;
+    ctx.fillText(phaseText, 1192, 120);
+    // Difficulty, small, under the kaiju phase — the player always knows
+    // which storm they picked.
+    ctx.fillText(diff.name, 1192, 138);
     ctx.textAlign = 'left';
-    // Controls hint, early in the fight.
+    // Control hints, early in the fight: small muted pills that fade out.
     if (screen === 'play' && state.elapsed < 6) {
-      ctx.globalAlpha = 0.75;
-      ctx.fillStyle = PALETTE.muted;
-      ctx.font = `14px ${FONT}`;
-      ctx.textAlign = 'center';
-      ctx.fillText('A/D MOVE   SPACE JUMP   J SLASH   K HEAVY   L FIREBALL   SHIFT DASH', FIELD.width / 2, FIELD.height - 16);
-      ctx.textAlign = 'left';
-      ctx.globalAlpha = 1;
+      const fade = state.elapsed < 4 ? 0.85 : Math.max(0, 0.85 * (6 - state.elapsed) / 2);
+      if (fade > 0.01) {
+        const hints = [['A / D', 'MOVE'], ['SPACE', 'JUMP'], ['J', 'SLASH'], ['K', 'HEAVY'], ['L', 'FIREBALL'], ['SHIFT', 'DASH']];
+        ctx.save();
+        ctx.globalAlpha = fade;
+        ctx.font = `bold 12px ${FONT}`;
+        const widths = hints.map(([key, act]) => ctx.measureText(key).width + 6 + ctx.measureText(act).width);
+        const gap = 10;
+        const pad = 9;
+        const total = widths.reduce((a, b) => a + b, 0) + pad * 2 * hints.length + gap * (hints.length - 1);
+        let hx = FIELD.width / 2 - total / 2;
+        const hy = FIELD.height - 30;
+        for (let i = 0; i < hints.length; i += 1) {
+          const [key, act] = hints[i];
+          const w = widths[i] + pad * 2;
+          roundRectPath(hx, hy, w, 20, 9);
+          ctx.fillStyle = 'rgba(10,6,16,0.6)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.fillStyle = PALETTE.text;
+          ctx.font = `bold 12px ${FONT}`;
+          ctx.textAlign = 'left';
+          ctx.fillText(key, hx + pad, hy + 14);
+          ctx.fillStyle = PALETTE.muted;
+          ctx.font = `11px ${FONT}`;
+          ctx.fillText(act, hx + pad + ctx.measureText(key).width + 6, hy + 14);
+          hx += w + gap;
+        }
+        ctx.restore();
+      }
     }
   }
 
@@ -1077,7 +1329,7 @@ export function createRenderer(canvas, assets) {
     }
     // HUD stays still: redraw it without the shake offset.
     ctx.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
-    if (screen === 'play' || screen === 'paused') drawHud(state, screen);
+    if (screen === 'play' || screen === 'paused') drawHud(state, screen, dt, ui);
     if (screen === 'title') drawTitle(state, best, ui);
     if (screen === 'select') drawSelect(state, selection || 'blue', kaijuSel || 'fire', diffSel || 'medium', ui);
     if (screen === 'roundIntro') drawRoundIntro(state, ui);

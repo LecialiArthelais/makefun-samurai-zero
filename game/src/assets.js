@@ -23,13 +23,20 @@ const FILES = {
   // style as the Edo dusk. A missing one falls back to bgEdo in render.
   bgSea: 'assets/bg-sea.jpg',
   bgMountain: 'assets/bg-mountain.jpg',
-  // Skins: PIL recolors of the two samurai (see SKINS in config.js).
-  // A skin that fails to load falls back to the default samurai art, and
-  // the shop marks it LOCKED so it can never be bought unseen.
+  // Skins: PIL recolors of the two samurai (see SKINS in config.js),
+  // plus the two AI-drawn robot skins (Tier 5). A skin that fails to
+  // load falls back to the default samurai art, and the shop marks it
+  // LOCKED so it can never be bought unseen.
   skinBlueFrost: 'assets/skin-blue-frost.png',
   skinBlueForest: 'assets/skin-blue-forest.png',
+  skinBlueShadow: 'assets/skin-blue-shadow.png',
+  skinBlueStorm: 'assets/skin-blue-storm.png',
+  skinBlueRobot: 'assets/skin-blue-robot.png',
   skinRedCrimson: 'assets/skin-red-crimson.png',
   skinRedViolet: 'assets/skin-red-violet.png',
+  skinRedJade: 'assets/skin-red-jade.png',
+  skinRedGold: 'assets/skin-red-gold.png',
+  skinRedRobot: 'assets/skin-red-robot.png',
 };
 
 const TIMEOUT_MS = 5000;

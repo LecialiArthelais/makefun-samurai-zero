@@ -99,23 +99,23 @@ export const SAVE_VERSION = 1;
 /** Coins: a match won pays 100, a match lost pays 25. One "fight" is one
  * match, not one round — so 30 match wins buy the cheapest skin (3,000),
  * exactly as the design promises. Skins are colour variants of a samurai:
- * cosmetic only, never a gameplay change. Tiers 3–5 are designed and
- * shown as COMING SOON (no asset yet) so the shop shows its depth. */
+ * cosmetic only, never a gameplay change. Tier 5 is the ROBOT skin:
+ * new AI-drawn art, 25,000 coins, the top of the shop. */
 export const SKINS = {
   blueFrost: { id: 'blueFrost', samurai: 'blue', name: 'FROST', file: 'skin-blue-frost.png', price: 3000, tier: 1 },
   blueForest: { id: 'blueForest', samurai: 'blue', name: 'FOREST', file: 'skin-blue-forest.png', price: 5000, tier: 2 },
-  blueShadow: { id: 'blueShadow', samurai: 'blue', name: 'SHADOW', price: 8000, tier: 3, comingSoon: true },
-  blueStorm: { id: 'blueStorm', samurai: 'blue', name: 'STORM', price: 12000, tier: 4, comingSoon: true },
-  blueMaster: { id: 'blueMaster', samurai: 'blue', name: 'MASTER GOLD', price: 20000, tier: 5, comingSoon: true },
+  blueShadow: { id: 'blueShadow', samurai: 'blue', name: 'SHADOW', file: 'skin-blue-shadow.png', price: 8000, tier: 3 },
+  blueStorm: { id: 'blueStorm', samurai: 'blue', name: 'STORM', file: 'skin-blue-storm.png', price: 12000, tier: 4 },
+  blueRobot: { id: 'blueRobot', samurai: 'blue', name: 'ROBOT', file: 'skin-blue-robot.png', price: 25000, tier: 5 },
   redCrimson: { id: 'redCrimson', samurai: 'red', name: 'CRIMSON', file: 'skin-red-crimson.png', price: 3000, tier: 1 },
   redViolet: { id: 'redViolet', samurai: 'red', name: 'VIOLET', file: 'skin-red-violet.png', price: 5000, tier: 2 },
-  redJade: { id: 'redJade', samurai: 'red', name: 'JADE', price: 8000, tier: 3, comingSoon: true },
-  redGold: { id: 'redGold', samurai: 'red', name: 'GOLD', price: 12000, tier: 4, comingSoon: true },
-  redMaster: { id: 'redMaster', samurai: 'red', name: 'MASTER GOLD', price: 20000, tier: 5, comingSoon: true },
+  redJade: { id: 'redJade', samurai: 'red', name: 'JADE', file: 'skin-red-jade.png', price: 8000, tier: 3 },
+  redGold: { id: 'redGold', samurai: 'red', name: 'GOLD', file: 'skin-red-gold.png', price: 12000, tier: 4 },
+  redRobot: { id: 'redRobot', samurai: 'red', name: 'ROBOT', file: 'skin-red-robot.png', price: 25000, tier: 5 },
 };
 export const SKIN_ORDER = {
-  blue: ['blueFrost', 'blueForest', 'blueShadow', 'blueStorm', 'blueMaster'],
-  red: ['redCrimson', 'redViolet', 'redJade', 'redGold', 'redMaster'],
+  blue: ['blueFrost', 'blueForest', 'blueShadow', 'blueStorm', 'blueRobot'],
+  red: ['redCrimson', 'redViolet', 'redJade', 'redGold', 'redRobot'],
 };
 
 export const RONIN = {
