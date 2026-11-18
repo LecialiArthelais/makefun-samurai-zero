@@ -1,18 +1,39 @@
-// The screenshot scenes behind ?shot=title|select|fight|victory|defeat. Each
-// one plays the real rules forward from a fresh world, steered by a simple
-// autopilot, so the frame is what a real game looks like and the same seed
-// always gives the same frame. The fight pilot is the one from the balance
-// tests: it closes in while Raiju rests, slashes, and backs off when the
-// storm telegraphs. The defeat pilot stands still, as a hurried player does.
-// The four gameplay shots showcase the whole roster: the fight is blue vs
-// fire, the victory is red vs sea, the defeat is blue vs the dragon.
+// The screenshot scenes behind ?shot=title|select|setup|fight|fireball|
+// victory|defeat|shop. Each one plays the real rules forward from a fresh
+// world, steered by a simple autopilot, so the frame is what a real game
+// looks like and the same seed always gives the same frame. The fight
+// pilot is the one from the balance tests: it closes in while Raiju rests,
+// slashes, and backs off when the storm telegraphs. The defeat pilot
+// stands still, as a hurried player does. The four gameplay shots
+// showcase the whole roster: the cover is red vs dragon, the surge shot
+// is blue vs sea in the Moonlit Sea, the victory is red vs sea, the
+// defeat is blue vs the dragon. Staged shots inject a deterministic save
+// (1,250 coins, one skin owned) instead of reading the player's
+// localStorage, so the shop and setup frames never depend on who took them.
 import { STEP } from './config.js';
-import { EVENT_LOSE, EVENT_RAIJU_HIT, EVENT_WIN } from './world.js';
+import { EVENT_DRAW, EVENT_LOSE, EVENT_RAIJU_HIT, EVENT_WIN } from './world.js';
 
 const TITLE_SECONDS = 2;
-const FIGHT_MIN_SECONDS = 20;
-const FIGHT_MAX_SECONDS = 26;
 const LIMIT_SECONDS = 175;
+
+const IDLE = { move: 0, jump: false, jumpHeld: false, slash: false, heavy: false, special: false, dash: false };
+
+/** The deterministic save every staged shot injects. */
+function stagedSave() {
+  return { version: 1, coins: 1250, owned: ['blueFrost'], equipped: { blue: 'blueFrost', red: 'red' }, best: 0 };
+}
+
+function stagedUi(overrides) {
+  return {
+    arenaSel: 'town',
+    matchSel: 3,
+    save: stagedSave(),
+    intro: { round: 1, matchLength: 3, roundWins: { ronin: 0, raiju: 0 }, winsNeeded: 2, surge: false, draw: false },
+    shop: { col: 0, row: 0, msg: '' },
+    lastCoins: 0,
+    ...(overrides || {}),
+  };
+}
 
 /** A duellist that fights properly: punish the rest, respect the telegraph. */
 export function createAutopilot() {
@@ -51,29 +72,36 @@ export function createAutopilot() {
  */
 export function stageShot(name, world) {
   world.reset();
-  if (name === 'select') {
-    // The select screen, blue highlighted, the duelists standing off.
-    const idle = { move: 0, jump: false, jumpHeld: false, slash: false, heavy: false, special: false, dash: false };
+  if (name === 'select' || name === 'setup') {
+    // The setup screen: blue highlighted, the sea kaiju and the Moonlit
+    // Sea arena picked, Best of 3, Medium — the full match setup in one
+    // frame, with the Frost skin worn so the card shows a variant.
+    const idle = { ...IDLE };
     for (let index = 0; index < TITLE_SECONDS / STEP; index += 1) world.step(STEP, idle);
-    return { screen: 'select', best: 0, selection: 'blue' };
+    return {
+      screen: 'select', best: 0, selection: 'blue', kaijuSel: 'sea', diffSel: 'medium',
+      ui: stagedUi({ arenaSel: 'sea', matchSel: 3 }),
+    };
   }
   if (name === 'fight') {
-    world.setMatch('blue', 'fire');
-    const pilot = createAutopilot();
-    let events = 0;
-    for (let index = 0; index < FIGHT_MAX_SECONDS / STEP; index += 1) {
-      events = world.step(STEP, pilot(world.state));
-      if (world.state.elapsed >= FIGHT_MIN_SECONDS && (events & EVENT_RAIJU_HIT)) {
-        // Let the slash arc swing past the impact and the hit flash fade, so
-        // the frame shows the blade mid-arc, the damage number still rising,
-        // and Raiju himself readable instead of white-hot.
-        const idle = { move: 0, jump: false, jumpHeld: false, slash: false, heavy: false, special: false, dash: false };
-        for (let j = 0; j < 8; j += 1) world.step(STEP, idle);
-        break;
-      }
-      if (world.state.over) break;
-    }
-    return { screen: world.state.over ? 'over' : 'play', best: world.state.score };
+    // Shot 2: the deciding round of a Best of 3 in the Moonlit Sea, with
+    // the KAIJU SURGE banner up — one frame proves the new arena and the
+    // surge at once. The match is staged at 1–1, so round 3 decides it.
+    world.setDifficulty('medium');
+    world.setMatch('blue', 'sea', 'sea', 3);
+    world.state.roundWins = { ronin: 1, raiju: 1 };
+    world.state.round = 3;
+    world.startRound(); // Surge is on: round 3 decides the match.
+    for (let index = 0; index < 0.5 / STEP; index += 1) world.step(STEP, { ...IDLE });
+    return {
+      screen: 'roundIntro',
+      best: world.state.score,
+      selection: 'blue', kaijuSel: 'sea', diffSel: 'medium',
+      ui: stagedUi({
+        arenaSel: 'sea', matchSel: 3,
+        intro: { round: 3, matchLength: 3, roundWins: { ronin: 1, raiju: 1 }, winsNeeded: 2, surge: true, draw: false },
+      }),
+    };
   }
   if (name === 'fireball') {
     // The cover shot: Enjin (red) hurls his fireball at SANRYU, the
@@ -124,24 +152,53 @@ export function stageShot(name, world) {
     return { screen: 'play', best: world.state.score };
   }
   if (name === 'victory') {
-    world.setMatch('red', 'sea');
+    // The match is staged at 1–0, so winning this round wins the match.
+    // Rounds are played to a conclusion, so the end screen always shows
+    // the true match result.
+    world.setDifficulty('medium');
+    world.setMatch('red', 'sea', 'town', 3);
+    world.state.roundWins = { ronin: 1, raiju: 0 };
+    world.state.round = 2;
+    world.startRound();
     const pilot = createAutopilot();
     for (let index = 0; index < LIMIT_SECONDS / STEP; index += 1) {
       const events = world.step(STEP, pilot(world.state));
-      if (events & EVENT_WIN) break;
-      if (events & EVENT_LOSE) break;
+      if (events & (EVENT_WIN | EVENT_LOSE | EVENT_DRAW)) {
+        const result = world.endRound();
+        if (result.matchOver) break;
+        world.startRound();
+      }
     }
-    return { screen: 'over', best: world.state.score };
+    return {
+      screen: 'over', best: world.state.score, selection: 'red', kaijuSel: 'sea', diffSel: 'medium',
+      ui: stagedUi({ lastCoins: world.state.matchWon ? 100 : 25 }),
+    };
   }
   if (name === 'defeat') {
     world.setMatch('blue', 'dragon');
-    const idle = { move: 0, jump: false, jumpHeld: false, slash: false, heavy: false, special: false, dash: false };
+    const idle = { ...IDLE };
     for (let index = 0; index < LIMIT_SECONDS / STEP; index += 1) {
       const events = world.step(STEP, idle);
-      if (events & EVENT_LOSE) break;
+      if (events & EVENT_LOSE) {
+        world.endRound();
+        break;
+      }
       if (events & EVENT_WIN) break;
     }
-    return { screen: 'over', best: world.state.score };
+    return {
+      screen: 'over', best: world.state.score, selection: 'blue', kaijuSel: 'dragon', diffSel: 'medium',
+      ui: stagedUi({ lastCoins: 25 }),
+    };
+  }
+  if (name === 'shop') {
+    // The shop with the staged save: 1,250 coins, Frost owned and
+    // equipped — the first row shows EQUIPPED, the second its price.
+    const idle = { ...IDLE };
+    for (let index = 0; index < TITLE_SECONDS / STEP; index += 1) world.step(STEP, idle);
+    return {
+      screen: 'shop', best: 0, selection: 'blue', kaijuSel: 'fire', diffSel: 'medium',
+      ui: stagedUi({ shop: { col: 0, row: 0, msg: '' } }),
+    };
   }
   // Title: a couple of seconds in, so the embers have drifted and the idle
   // animation is mid-frame, the duelists still standing off.

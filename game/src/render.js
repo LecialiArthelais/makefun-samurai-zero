@@ -6,7 +6,7 @@
 // too: trauma-based screen shake (game-feel) moves only the camera, never
 // the simulation. The playfield is a fixed 1280x720 logical area, scaled to
 // the window with letterboxing.
-import { DIFFICULTY, FIELD, KAIJU_TYPES, PALETTE, FONT, RAIJU, RONIN, SAMURAI_VARIANTS, SCORE } from './config.js';
+import { ARENA_ORDER, ARENAS, DIFFICULTY, DIFFICULTY_ORDER, FIELD, KAIJU_TYPES, MATCH, PALETTE, FONT, RAIJU, RONIN, SAMURAI_VARIANTS, SCORE, SKINS, SKIN_ORDER, SURGE } from './config.js';
 import { drawPixelSprite, drawPixelSpriteAt, SPRITES } from './sprites.js';
 
 function hash(n) {
@@ -72,9 +72,20 @@ export function createRenderer(canvas, assets) {
     return true;
   }
 
-  // The raster hero for the picked samurai, or null when it did not load.
-  function heroImage(state) {
+  // The raster hero for the picked samurai — the equipped skin when one
+  // is worn (ui.save.equipped), else the default art. A skin whose file
+  // did not load falls back to the default, never to a blank.
+  function skinAssetKey(skinId) {
+    return 'skin' + skinId.charAt(0).toUpperCase() + skinId.slice(1);
+  }
+
+  function heroImage(state, ui) {
     if (!assets) return null;
+    const equipped = ui && ui.save && ui.save.equipped ? ui.save.equipped[state.samurai || 'blue'] : null;
+    if (equipped && equipped !== state.samurai && SKINS[equipped]) {
+      const img = assets[skinAssetKey(equipped)];
+      if (img) return img;
+    }
     return state.samurai === 'red' ? assets.samuraiRed : assets.samuraiBlue;
   }
 
@@ -85,14 +96,19 @@ export function createRenderer(canvas, assets) {
   }
 
   // ---------------------------------------------------------- background
-  function drawBackground(elapsed) {
-    // The painted Edo dusk: a raster backdrop (Fuji, the burning town, the
-    // torii, the bridge, the stone platform) replaces the old flat vector
-    // scenery. The drifting embers and the vignette stay code-drawn — they
-    // are alive, moving with the clock, and they sit on top of the painting.
-    if (assets && assets.bgEdo) {
+  // The arena's painted backdrop: the raster painting for the arena when
+  // it loaded (Edo dusk, moonlit sea, burning mountain), the Edo painting
+  // as a fallback, the old code-drawn dusk when nothing loaded. The
+  // ambient particles and the vignette stay code-drawn — alive, moving
+  // with the clock, on top of the painting. The ground line never moves:
+  // every arena shares the same playfield geometry, so the balance does
+  // not move with the scenery.
+  function drawBackground(elapsed, arenaId) {
+    const arena = ARENAS[arenaId || 'town'] || ARENAS.town;
+    const bgImg = (assets && assets[arena.bg]) || (assets && assets.bgEdo);
+    if (bgImg) {
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(assets.bgEdo, 0, 0, FIELD.width, FIELD.height);
+      ctx.drawImage(bgImg, 0, 0, FIELD.width, FIELD.height);
       ctx.imageSmoothingEnabled = false;
     } else {
       // Asset missing: the old code-drawn dusk, as a fallback.
@@ -106,24 +122,67 @@ export function createRenderer(canvas, assets) {
       ctx.fillStyle = PALETTE.ground;
       ctx.fillRect(0, FIELD.groundY, FIELD.width, FIELD.height - FIELD.groundY);
     }
-    // Drifting embers and glowing sparks, deterministic from the clock.
-    for (let i = 0; i < 64; i += 1) {
-      const speed = 12 + hash(i + 200) * 22;
-      const rise = 8 + hash(i + 300) * 18;
-      const x = (hash(i) * FIELD.width + elapsed * speed) % FIELD.width;
-      const y = FIELD.groundY - ((hash(i + 100) * 420 + elapsed * rise) % 460);
-      const size = 2 + hash(i + 400) * 3;
-      const a = 0.35 + 0.45 * hash(i + 500);
-      if (hash(i + 600) > 0.7) {
-        ctx.globalAlpha = a * 0.35;
-        ctx.fillStyle = PALETTE.ember;
-        ctx.fillRect(x - 3, y - 3, size + 6, size + 6);
+    if (arena.id === 'sea') {
+      // Moonlit sea: the raster background already carries its moon, so
+      // the ambient layer adds only shimmer on the water and spray
+      // rising from the waves — never a second moon.
+      for (let i = 0; i < 5; i += 1) {
+        const wob = Math.sin(elapsed * 0.7 + i * 1.7) * 18;
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = '#bfe6ff';
+        ctx.fillRect(880 + wob, 560 + i * 16, 260, 3);
       }
-      ctx.globalAlpha = a;
-      ctx.fillStyle = hash(i + 600) > 0.5 ? PALETTE.ember : PALETTE.spark;
-      ctx.fillRect(x, y, size, size);
+      ctx.globalAlpha = 1;
+      for (let i = 0; i < 40; i += 1) {
+        const speed = 10 + hash(i + 200) * 18;
+        const rise = 14 + hash(i + 300) * 22;
+        const x = (hash(i) * FIELD.width + elapsed * speed) % FIELD.width;
+        const y = FIELD.groundY - ((hash(i + 100) * 300 + elapsed * rise) % 340);
+        const size = 2 + hash(i + 400) * 2;
+        ctx.globalAlpha = 0.3 + 0.4 * hash(i + 500);
+        ctx.fillStyle = '#bfe6ff';
+        ctx.fillRect(x, y, size, size);
+      }
+      ctx.globalAlpha = 1;
+    } else if (arena.id === 'mountain') {
+      // Burning mountain: ash falling slow, and the lava's glow low on
+      // the slope — deterministic from the clock.
+      const glow = ctx.createRadialGradient(640, 520, 40, 640, 520, 420);
+      glow.addColorStop(0, 'rgba(255,122,42,0.20)');
+      glow.addColorStop(1, 'rgba(255,122,42,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+      for (let i = 0; i < 48; i += 1) {
+        const fall = 6 + hash(i + 200) * 12;
+        const drift = (hash(i + 300) - 0.5) * 14;
+        const x = (hash(i) * FIELD.width + elapsed * drift + 1280) % FIELD.width;
+        const y = (hash(i + 100) * 420 + elapsed * fall) % 460;
+        const size = 2 + hash(i + 400) * 3;
+        ctx.globalAlpha = 0.3 + 0.4 * hash(i + 500);
+        ctx.fillStyle = hash(i + 600) > 0.5 ? '#ff9a3d' : '#8a7a72';
+        ctx.fillRect(x, y, size, size);
+      }
+      ctx.globalAlpha = 1;
+    } else {
+      // Burning town: drifting embers and glowing sparks, as before.
+      for (let i = 0; i < 64; i += 1) {
+        const speed = 12 + hash(i + 200) * 22;
+        const rise = 8 + hash(i + 300) * 18;
+        const x = (hash(i) * FIELD.width + elapsed * speed) % FIELD.width;
+        const y = FIELD.groundY - ((hash(i + 100) * 420 + elapsed * rise) % 460);
+        const size = 2 + hash(i + 400) * 3;
+        const a = 0.35 + 0.45 * hash(i + 500);
+        if (hash(i + 600) > 0.7) {
+          ctx.globalAlpha = a * 0.35;
+          ctx.fillStyle = PALETTE.ember;
+          ctx.fillRect(x - 3, y - 3, size + 6, size + 6);
+        }
+        ctx.globalAlpha = a;
+        ctx.fillStyle = hash(i + 600) > 0.5 ? PALETTE.ember : PALETTE.spark;
+        ctx.fillRect(x, y, size, size);
+      }
+      ctx.globalAlpha = 1;
     }
-    ctx.globalAlpha = 1;
     // Cinematic vignette: the edges darken, pulling the eye to the duel.
     const vig = ctx.createRadialGradient(640, 360, 260, 640, 360, 760);
     vig.addColorStop(0, 'rgba(10,6,16,0)');
@@ -148,7 +207,7 @@ export function createRenderer(canvas, assets) {
     return set.idle[frame];
   }
 
-  function drawRonin(state, elapsed) {
+  function drawRonin(state, elapsed, ui) {
     const r = state.ronin;
     // Invulnerability: the ronin goes ghostly, never invisible — the hero
     // must always read, even in a screenshot.
@@ -161,7 +220,7 @@ export function createRenderer(canvas, assets) {
       lunge = r.facing * 14 * Math.max(0, Math.min(1, r.poseTime / dur));
     }
     const hx = r.x + lunge;
-    const img = heroImage(state);
+    const img = heroImage(state, ui);
     if (img) {
       // One static raster portrait, so the pose reads through motion: a
       // gentle idle breath (up-down bob plus a faint sway), a forward lean
@@ -210,9 +269,11 @@ export function createRenderer(canvas, assets) {
     // Idle life: the kaiju breathes. A slow up-down bob plus a faint sway,
     // so it never stands frozen — the beast is alive even while it waits.
     // The sway is small (a degree of tilt) and the bob is slow, so the
-    // silhouette stays clean and readable.
+    // silhouette stays clean and readable. In a surge round the breath
+    // quickens — the beast is hunting, and the round is deciding.
     const breathing = k.state === 'idle' || k.state === 'recover';
-    const bob = breathing ? Math.sin(elapsed * 1.8) * 4 : Math.sin(elapsed * 2.2) * 3;
+    const bobRate = state.surge ? 3.4 : 1.8;
+    const bob = breathing ? Math.sin(elapsed * bobRate) * 4 : Math.sin(elapsed * 2.2) * 3;
     const sway = breathing ? Math.sin(elapsed * 1.8 + 0.6) * 0.02 : 0;
     const bottomY = FIELD.groundY + drop - rear + bob;
     // The raster kaiju when it loaded, the code-drawn pixel sprite
@@ -239,6 +300,27 @@ export function createRenderer(canvas, assets) {
     // Shadow.
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.fillRect(k.x - 112, FIELD.groundY - 2, 224, 6);
+    // Surge: the ground under the kaiju cracks and glows — a temporary
+    // event effect for the deciding round, never part of the character art.
+    if (state.surge) {
+      const fx = KAIJU_TYPES[state.kaiju || 'fire'];
+      ctx.save();
+      ctx.globalAlpha = 0.7 + 0.2 * Math.sin(elapsed * 6);
+      ctx.strokeStyle = fx.eye;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(k.x - 110, FIELD.groundY + 2);
+      ctx.lineTo(k.x - 40, FIELD.groundY + 10);
+      ctx.lineTo(k.x + 10, FIELD.groundY + 4);
+      ctx.lineTo(k.x + 90, FIELD.groundY + 12);
+      ctx.moveTo(k.x - 40, FIELD.groundY + 10);
+      ctx.lineTo(k.x - 60, FIELD.groundY + 22);
+      ctx.lineTo(k.x - 10, FIELD.groundY + 28);
+      ctx.moveTo(k.x + 10, FIELD.groundY + 4);
+      ctx.lineTo(k.x + 50, FIELD.groundY + 20);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // ---------------------------------------------------------- effects
@@ -468,6 +550,14 @@ export function createRenderer(canvas, assets) {
     }
     ctx.fillStyle = PALETTE.muted;
     ctx.fillText(state.samurai === 'red' ? 'EMBER' : 'MOONLIGHT', 178, 74);
+    // Round pips: one small circle per round the match needs, filled for
+    // each round the samurai has won — the fighting-game standard.
+    for (let i = 0; i < state.winsNeeded; i += 1) {
+      ctx.fillStyle = i < state.roundWins.ronin ? PALETTE.spark : 'rgba(243,234,216,0.25)';
+      ctx.beginPath();
+      ctx.arc(92 + i * 18, 92, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
     // Timer + score (top-centre).
     const t = Math.max(0, Math.ceil(state.timeLeft));
     const mm = String(Math.floor(t / 60));
@@ -515,6 +605,19 @@ export function createRenderer(canvas, assets) {
     // which storm they picked.
     ctx.fillStyle = PALETTE.muted;
     ctx.fillText((DIFFICULTY[state.difficulty] || DIFFICULTY.medium).name, FIELD.width - 84, 96);
+    // Round pips for the kaiju (right side), and the SURGE marker while
+    // the deciding round runs — the player always sees the stakes.
+    for (let i = 0; i < state.winsNeeded; i += 1) {
+      ctx.fillStyle = i < state.roundWins.raiju ? kai.aura : 'rgba(243,234,216,0.25)';
+      ctx.beginPath();
+      ctx.arc(FIELD.width - 92 - i * 18, 92, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (state.surge) {
+      ctx.fillStyle = kai.eye;
+      ctx.font = `bold 14px ${FONT}`;
+      ctx.fillText('◆ SURGE', FIELD.width - 284, 74);
+    }
     ctx.textAlign = 'left';
     // Controls hint, early in the fight.
     if (screen === 'play' && state.elapsed < 6) {
@@ -537,7 +640,7 @@ export function createRenderer(canvas, assets) {
     ctx.strokeRect(x, y, w, h);
   }
 
-  function drawTitle(state, best) {
+  function drawTitle(state, best, ui) {
     ctx.fillStyle = 'rgba(10,6,16,0.45)';
     ctx.fillRect(0, 0, FIELD.width, FIELD.height);
     ctx.textAlign = 'center';
@@ -555,7 +658,7 @@ export function createRenderer(canvas, assets) {
     ctx.shadowBlur = 0;
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `16px ${FONT}`;
-    ctx.fillText('A KAIJU HAS COME FOR THE TOWN. WHICH ONE, NO ONE KNOWS.', FIELD.width / 2, 396);
+    ctx.fillText('CHOOSE YOUR BLADE. CHOOSE YOUR STORM.', FIELD.width / 2, 396);
     ctx.fillText('THREE MINUTES. THREE PHASES. ONE BLADE.', FIELD.width / 2, 422);
     ctx.fillStyle = PALETTE.text;
     ctx.font = `bold 20px ${FONT}`;
@@ -567,20 +670,80 @@ export function createRenderer(canvas, assets) {
       ctx.fillStyle = PALETTE.spark;
       ctx.fillText(`BEST SCORE ${best}`, FIELD.width / 2, 580);
     }
+    const coins = ui && ui.save ? ui.save.coins : 0;
+    ctx.fillStyle = PALETTE.spark;
+    ctx.font = `bold 16px ${FONT}`;
+    ctx.fillText(`COINS ${coins}    —    PRESS S FOR SKIN SHOP`, FIELD.width / 2, 612);
     ctx.textAlign = 'left';
   }
 
-  function drawSelect(state, selection, kaijuSel, diffSel) {
+  // The round-intro card: "ROUND 2" for an ordinary round, the KAIJU
+  // SURGE banner for a deciding round — with the edge lightning and the
+  // roar's shake behind it. The duelists breathe behind the card.
+  function drawRoundIntro(state, ui) {
+    const intro = (ui && ui.intro) || {};
+    ctx.fillStyle = 'rgba(10,6,16,0.5)';
+    ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+    ctx.textAlign = 'center';
+    if (intro.surge) {
+      const kai = KAIJU_TYPES[state.kaiju || 'fire'];
+      ctx.fillStyle = PALETTE.spark;
+      ctx.font = `bold 26px ${FONT}`;
+      ctx.fillText('MATCH POINT', FIELD.width / 2, 250);
+      ctx.fillStyle = kai.eye;
+      ctx.shadowColor = kai.eye;
+      ctx.shadowBlur = 30;
+      ctx.font = `bold 64px ${FONT}`;
+      ctx.fillText(SURGE.bannerText, FIELD.width / 2, 340);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = PALETTE.text;
+      ctx.font = `18px ${FONT}`;
+      ctx.fillText(SURGE.subText, FIELD.width / 2, 380);
+      // Edge lightning: jagged lines down both frame edges — an event
+      // effect, never part of the character art.
+      ctx.strokeStyle = kai.eye;
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.8;
+      for (let side = 0; side < 2; side += 1) {
+        const x0 = side === 0 ? 24 : FIELD.width - 24;
+        ctx.beginPath();
+        ctx.moveTo(x0, 120);
+        for (let i = 1; i <= 6; i += 1) {
+          ctx.lineTo(x0 + (hash(i + side * 10) - 0.5) * 36, 120 + i * 80);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = PALETTE.sunCore;
+      ctx.font = `bold 56px ${FONT}`;
+      ctx.fillText(intro.draw ? 'DRAW — ROUND REPLAYED' : `ROUND ${state.round}`, FIELD.width / 2, 320);
+      ctx.fillStyle = PALETTE.muted;
+      ctx.font = `18px ${FONT}`;
+      const wins = state.roundWins || { ronin: 0, raiju: 0 };
+      ctx.fillText(`BEST OF ${state.matchLength}  —  ${wins.ronin} : ${wins.raiju}`, FIELD.width / 2, 360);
+    }
+    ctx.textAlign = 'left';
+  }
+
+  function drawSelect(state, selection, kaijuSel, diffSel, ui) {
     ctx.fillStyle = 'rgba(10,6,16,0.45)';
     ctx.fillRect(0, 0, FIELD.width, FIELD.height);
     ctx.textAlign = 'center';
+    // Coins, top-right — the player always sees the wallet.
+    const coins = ui && ui.save ? ui.save.coins : 0;
+    ctx.fillStyle = PALETTE.spark;
+    ctx.font = `bold 16px ${FONT}`;
+    ctx.textAlign = 'right';
+    ctx.fillText(`COINS ${coins}`, FIELD.width - 24, 30);
+    ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.sunCore;
     ctx.font = `bold 40px ${FONT}`;
-    ctx.fillText('SAMURAI ZERO', FIELD.width / 2, 72);
+    ctx.fillText('SAMURAI ZERO', FIELD.width / 2, 64);
     // --- Samurai: two cards, A/D to choose.
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `15px ${FONT}`;
-    ctx.fillText('CHOOSE YOUR SAMURAI  —  A / D', FIELD.width / 2, 104);
+    ctx.fillText('CHOOSE YOUR SAMURAI  —  A / D', FIELD.width / 2, 92);
     const cards = [
       { id: 'blue', x: 340, variant: SAMURAI_VARIANTS.blue },
       { id: 'red', x: 940, variant: SAMURAI_VARIANTS.red },
@@ -590,69 +753,126 @@ export function createRenderer(canvas, assets) {
       const cx = card.x;
       // Card panel.
       ctx.fillStyle = selected ? 'rgba(60,40,80,0.92)' : 'rgba(20,14,28,0.88)';
-      ctx.fillRect(cx - 190, 128, 380, 300);
+      ctx.fillRect(cx - 190, 104, 380, 200);
       ctx.strokeStyle = selected ? card.variant.slash : PALETTE.panelEdge;
       ctx.lineWidth = selected ? 3 : 1;
-      ctx.strokeRect(cx - 190, 128, 380, 300);
+      ctx.strokeRect(cx - 190, 104, 380, 200);
       ctx.lineWidth = 1;
-      // The samurai, large, standing on the card — the raster art when it
-      // loaded, the code-drawn sprite otherwise.
-      const img = assets && (card.id === 'red' ? assets.samuraiRed : assets.samuraiBlue);
-      if (img) drawRaster(img, cx, 320, 170);
+      // The samurai, wearing the equipped skin when one is worn.
+      const equipped = ui && ui.save && ui.save.equipped ? ui.save.equipped[card.id] : null;
+      let img = null;
+      if (equipped && equipped !== card.id && SKINS[equipped]) img = assets ? assets[skinAssetKey(equipped)] : null;
+      if (!img) img = assets && (card.id === 'red' ? assets.samuraiRed : assets.samuraiBlue);
+      if (img) drawRaster(img, cx, 240, 125);
       else {
         const set = SPRITES.samurai[card.id];
-        drawPixelSprite(ctx, set.idle[0], cx, 320, 5);
+        drawPixelSprite(ctx, set.idle[0], cx, 240, 4);
       }
       // Name + tagline + fighting style (Hayate swift, Enjin mighty).
       // The selected card's name carries a ▶ marker — no separate line,
       // so nothing overlaps the card's bottom edge.
       ctx.fillStyle = PALETTE.text;
-      ctx.font = `bold 24px ${FONT}`;
-      ctx.fillText(selected ? `▶ ${card.variant.title.toUpperCase()}` : card.variant.title.toUpperCase(), cx, 368);
+      ctx.font = `bold 22px ${FONT}`;
+      ctx.fillText(selected ? `▶ ${card.variant.title.toUpperCase()}` : card.variant.title.toUpperCase(), cx, 268);
       ctx.fillStyle = PALETTE.muted;
       ctx.font = `13px ${FONT}`;
-      ctx.fillText(card.variant.tagline, cx, 392);
+      ctx.fillText(card.variant.tagline, cx, 288);
       ctx.fillStyle = card.variant.slash;
       ctx.font = `bold 12px ${FONT}`;
-      ctx.fillText(card.variant.style, cx, 414);
+      ctx.fillText(card.variant.style, cx, 302);
     }
-    // --- Kaiju: W/S to choose which storm to face (no longer random).
-    const kaiju = KAIJU_TYPES[kaijuSel || 'fire'];
+    // --- Kaiju: three cards with their pictures, W/S to choose.
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `15px ${FONT}`;
-    ctx.fillText('CHOOSE YOUR KAIJU  —  W / S', FIELD.width / 2, 492);
-    ctx.fillStyle = PALETTE.text;
-    ctx.font = `bold 22px ${FONT}`;
-    ctx.fillText(`${kaiju.name} — ${kaiju.title.toUpperCase()}`, FIELD.width / 2, 522);
+    ctx.fillText('CHOOSE YOUR KAIJU  —  W / S', FIELD.width / 2, 330);
+    const kaijuCards = [
+      { id: 'fire', x: 350, type: KAIJU_TYPES.fire, img: assets ? assets.kaijuFire : null },
+      { id: 'sea', x: 640, type: KAIJU_TYPES.sea, img: assets ? assets.kaijuSea : null },
+      { id: 'dragon', x: 930, type: KAIJU_TYPES.dragon, img: assets ? assets.kaijuDragon : null },
+    ];
+    for (const card of kaijuCards) {
+      const selected = kaijuSel === card.id;
+      ctx.fillStyle = selected ? 'rgba(60,40,80,0.92)' : 'rgba(20,14,28,0.88)';
+      ctx.fillRect(card.x - 135, 342, 270, 110);
+      ctx.strokeStyle = selected ? card.type.eye : PALETTE.panelEdge;
+      ctx.lineWidth = selected ? 3 : 1;
+      ctx.strokeRect(card.x - 135, 342, 270, 110);
+      ctx.lineWidth = 1;
+      if (card.img) drawRaster(card.img, card.x, 420, 64);
+      ctx.fillStyle = PALETTE.text;
+      ctx.font = `bold 16px ${FONT}`;
+      ctx.fillText(selected ? `▶ ${card.type.name}` : card.type.name, card.x, 444);
+    }
+    const kaiju = KAIJU_TYPES[kaijuSel || 'fire'];
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `13px ${FONT}`;
-    ctx.fillText(kaiju.tagline, FIELD.width / 2, 544);
-    // --- Difficulty: 1/2/3, with the win chance on the label.
-    const diffs = ['easy', 'medium', 'hard'].map((id) => DIFFICULTY[id]);
-    const diffY = 576;
-    const diffW = 260;
-    const diffGap = 24;
+    ctx.fillText(kaiju.tagline, FIELD.width / 2, 472);
+    // --- Arena: three cards, Q/E to choose. Each names its home kaiju.
+    ctx.fillStyle = PALETTE.muted;
+    ctx.font = `15px ${FONT}`;
+    ctx.fillText('CHOOSE YOUR ARENA  —  Q / E', FIELD.width / 2, 496);
+    const arenaSel = (ui && ui.arenaSel) || 'town';
+    const arenaCards = ARENA_ORDER.map((id, i) => ({ id, x: 350 + i * 290, arena: ARENAS[id] }));
+    for (const card of arenaCards) {
+      const selected = arenaSel === card.id;
+      ctx.fillStyle = selected ? 'rgba(60,40,80,0.92)' : 'rgba(20,14,28,0.88)';
+      ctx.fillRect(card.x - 135, 508, 270, 48);
+      ctx.strokeStyle = selected ? PALETTE.spark : PALETTE.panelEdge;
+      ctx.lineWidth = selected ? 2 : 1;
+      ctx.strokeRect(card.x - 135, 508, 270, 48);
+      ctx.lineWidth = 1;
+      ctx.fillStyle = selected ? PALETTE.spark : PALETTE.text;
+      ctx.font = `bold 14px ${FONT}`;
+      ctx.fillText((selected ? '▶ ' : '') + card.arena.name, card.x, 530);
+      ctx.fillStyle = PALETTE.muted;
+      ctx.font = `11px ${FONT}`;
+      const homeKaiju = KAIJU_TYPES[card.arena.homeKaiju];
+      ctx.fillText(`HOME OF ${homeKaiju.name}`, card.x, 548);
+    }
+    // --- Match length: Best of 3 or Best of 5, T to toggle.
+    const matchSel = (ui && ui.matchSel) || 3;
+    ctx.fillStyle = PALETTE.muted;
+    ctx.font = `15px ${FONT}`;
+    ctx.fillText('MATCH  —  T TO CHANGE', FIELD.width / 2, 576);
+    const matchBtns = [
+      { length: 3, x: 548, label: 'BEST OF 3' },
+      { length: 5, x: 732, label: 'BEST OF 5' },
+    ];
+    for (const btn of matchBtns) {
+      const selected = matchSel === btn.length;
+      ctx.fillStyle = selected ? 'rgba(60,40,80,0.92)' : 'rgba(20,14,28,0.88)';
+      ctx.fillRect(btn.x - 85, 588, 170, 40);
+      ctx.strokeStyle = selected ? PALETTE.spark : PALETTE.panelEdge;
+      ctx.lineWidth = selected ? 2 : 1;
+      ctx.strokeRect(btn.x - 85, 588, 170, 40);
+      ctx.lineWidth = 1;
+      ctx.fillStyle = selected ? PALETTE.spark : PALETTE.text;
+      ctx.font = `bold 15px ${FONT}`;
+      ctx.fillText((selected ? '▶ ' : '') + btn.label, btn.x, 614);
+    }
+    // --- Difficulty: 1/2/3/4, with the win chance on the label.
+    const diffs = DIFFICULTY_ORDER.map((id) => DIFFICULTY[id]);
+    const diffY = 640;
+    const diffW = 200;
+    const diffGap = 16;
     const totalW = diffs.length * diffW + (diffs.length - 1) * diffGap;
     let dx = (FIELD.width - totalW) / 2;
     for (const d of diffs) {
       const selected = diffSel === d.id;
       ctx.fillStyle = selected ? 'rgba(60,40,80,0.92)' : 'rgba(20,14,28,0.88)';
-      ctx.fillRect(dx, diffY, diffW, 64);
+      ctx.fillRect(dx, diffY, diffW, 40);
       ctx.strokeStyle = selected ? PALETTE.spark : PALETTE.panelEdge;
       ctx.lineWidth = selected ? 2 : 1;
-      ctx.strokeRect(dx, diffY, diffW, 64);
+      ctx.strokeRect(dx, diffY, diffW, 40);
       ctx.lineWidth = 1;
       ctx.fillStyle = selected ? PALETTE.spark : PALETTE.text;
-      ctx.font = `bold 16px ${FONT}`;
+      ctx.font = `bold 14px ${FONT}`;
       ctx.fillText(`${d.name}  —  ${d.winChance}% WIN`, dx + diffW / 2, diffY + 26);
-      ctx.fillStyle = PALETTE.muted;
-      ctx.font = `12px ${FONT}`;
-      ctx.fillText(d.tagline, dx + diffW / 2, diffY + 48);
       dx += diffW + diffGap;
     }
     ctx.fillStyle = PALETTE.muted;
-    ctx.font = `14px ${FONT}`;
-    ctx.fillText('1 / 2 / 3  TO CHOOSE DIFFICULTY      ENTER  TO FIGHT', FIELD.width / 2, 668);
+    ctx.font = `13px ${FONT}`;
+    ctx.fillText('ENTER  TO FIGHT      ESC  BACK', FIELD.width / 2, 700);
     ctx.textAlign = 'left';
   }
 
@@ -669,52 +889,160 @@ export function createRenderer(canvas, assets) {
     ctx.textAlign = 'left';
   }
 
-  function drawEnd(state, best) {
+  function drawEnd(state, best, ui) {
     ctx.fillStyle = 'rgba(10,6,16,0.55)';
     ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+    // The end screen shows the MATCH result (matchWon), not the last
+    // round's — a match can end on a lost round for the loser.
+    const won = state.matchWon;
     const w = 560;
-    const h = state.won ? 414 : 374;
+    const h = won ? 500 : 440;
     const x = (FIELD.width - w) / 2;
     const y = (FIELD.height - h) / 2;
     panel(x, y, w, h);
+    let cy = y + 72;
     ctx.textAlign = 'center';
-    ctx.fillStyle = state.won ? PALETTE.spark : PALETTE.hpBad;
+    ctx.fillStyle = won ? PALETTE.spark : PALETTE.hpBad;
     ctx.font = `bold 46px ${FONT}`;
-    ctx.fillText(state.won ? 'THE STORM FALLS' : 'THE STORM WINS', FIELD.width / 2, y + 78);
+    ctx.fillText(won ? 'THE STORM FALLS' : 'THE STORM WINS', FIELD.width / 2, cy);
+    cy += 34;
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `16px ${FONT}`;
     const kaiName = KAIJU_TYPES[state.kaiju || 'fire'].name;
     ctx.fillText(
-      state.won ? `${kaiName} IS FELLED. THE TOWN STILL STANDS.` : 'THE SAMURAI FALLS. THE THUNDER ROLLS ON.',
-      FIELD.width / 2, y + 112,
+      won ? `${kaiName} IS FELLED. THE TOWN STILL STANDS.` : 'THE SAMURAI FALLS. THE THUNDER ROLLS ON.',
+      FIELD.width / 2, cy,
     );
+    cy += 52;
     ctx.fillStyle = PALETTE.text;
     ctx.font = `bold 22px ${FONT}`;
-    const timeBonus = state.won ? Math.round(state.timeLeft) * 10 : 0;
-    const noHitBonus = state.won && state.noHit ? 1000 : 0;
-    ctx.fillText(`DAMAGE DEALT  ${state.damageDealt}`, FIELD.width / 2, y + 168);
-    if (state.won) {
-      ctx.fillText(`TIME BONUS  +${timeBonus}`, FIELD.width / 2, y + 202);
-      if (noHitBonus > 0) ctx.fillText(`UNTOUCHED  +${noHitBonus}`, FIELD.width / 2, y + 236);
+    ctx.fillText(`ROUNDS  ${state.roundWins.ronin} — ${state.roundWins.raiju}`, FIELD.width / 2, cy);
+    cy += 34;
+    ctx.fillText(`DAMAGE DEALT  ${state.matchDamage}`, FIELD.width / 2, cy);
+    if (won) {
+      cy += 34;
+      ctx.fillText(`TIME BONUS  +${Math.round(state.timeLeft) * 10}`, FIELD.width / 2, cy);
+      if (state.noHit) {
+        cy += 34;
+        ctx.fillText('UNTOUCHED  +1000', FIELD.width / 2, cy);
+      }
     }
+    cy += 46;
     ctx.fillStyle = PALETTE.spark;
     ctx.font = `bold 30px ${FONT}`;
-    ctx.fillText(`SCORE  ${state.score}`, FIELD.width / 2, y + (state.won ? 282 : 246));
+    ctx.fillText(`SCORE  ${state.score}`, FIELD.width / 2, cy);
+    cy += 36;
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `15px ${FONT}`;
-    ctx.fillText(`BEST  ${Math.max(best, state.score)}`, FIELD.width / 2, y + (state.won ? 318 : 282));
-    if (state.comboBest >= 2) {
+    ctx.fillText(`BEST  ${Math.max(best, state.score)}`, FIELD.width / 2, cy);
+    if (state.matchComboBest >= 2) {
+      cy += 34;
       ctx.fillStyle = PALETTE.text;
-      ctx.fillText(`BEST COMBO  x${state.comboBest}`, FIELD.width / 2, y + (state.won ? 352 : 316));
+      ctx.fillText(`BEST COMBO  x${state.matchComboBest}`, FIELD.width / 2, cy);
     }
+    cy += 34;
+    ctx.fillStyle = PALETTE.spark;
+    ctx.font = `bold 18px ${FONT}`;
+    const coins = ui && ui.save ? ui.save.coins : 0;
+    const earned = ui ? ui.lastCoins || 0 : 0;
+    ctx.fillText(`+${earned} COINS  —  TOTAL ${coins}`, FIELD.width / 2, cy);
     ctx.fillStyle = PALETTE.text;
     ctx.font = `bold 18px ${FONT}`;
-    ctx.fillText('PRESS ENTER TO FIGHT AGAIN', FIELD.width / 2, y + h - 24);
+    ctx.fillText('PRESS ENTER TO FIGHT AGAIN', FIELD.width / 2, y + h - 52);
+    ctx.fillStyle = PALETTE.muted;
+    ctx.font = `15px ${FONT}`;
+    ctx.fillText('S — SKIN SHOP', FIELD.width / 2, y + h - 24);
+    ctx.textAlign = 'left';
+  }
+
+  // The skin shop: two columns (Hayate | Enjin), each skin a row with its
+  // preview, name, price or status. A/D switches column, W/S moves down
+  // the list, Enter buys or equips, Esc goes back. Prices come from the
+  // SKINS table; a skin that never loaded shows the default art and can
+  // never be bought unseen.
+  function drawShop(state, ui) {
+    const shop = (ui && ui.shop) || { col: 0, row: 0, msg: '' };
+    const coins = ui && ui.save ? ui.save.coins : 0;
+    const owned = (ui && ui.save && ui.save.owned) || [];
+    const equipped = (ui && ui.save && ui.save.equipped) || { blue: 'blue', red: 'red' };
+    ctx.fillStyle = 'rgba(10,6,16,0.45)';
+    ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = PALETTE.sunCore;
+    ctx.font = `bold 40px ${FONT}`;
+    ctx.fillText('SKIN SHOP', FIELD.width / 2, 64);
+    ctx.fillStyle = PALETTE.spark;
+    ctx.font = `bold 22px ${FONT}`;
+    ctx.fillText(`COINS  ${coins}`, FIELD.width / 2, 96);
+    ctx.fillStyle = PALETTE.muted;
+    ctx.font = `13px ${FONT}`;
+    ctx.fillText('COSMETIC ONLY — NO GAMEPLAY EFFECT', FIELD.width / 2, 118);
+    const cols = [
+      { sam: 'blue', x: 340, variant: SAMURAI_VARIANTS.blue },
+      { sam: 'red', x: 940, variant: SAMURAI_VARIANTS.red },
+    ];
+    for (let c = 0; c < cols.length; c += 1) {
+      const col = cols[c];
+      const selected = shop.col === c;
+      ctx.fillStyle = PALETTE.text;
+      ctx.font = `bold 20px ${FONT}`;
+      ctx.fillText(col.variant.title.toUpperCase(), col.x, 150);
+      const list = SKIN_ORDER[col.sam];
+      let ry = 168;
+      for (let i = 0; i < list.length; i += 1) {
+        const skin = SKINS[list[i]];
+        const cursor = selected && shop.row === i;
+        const isOwned = owned.includes(skin.id);
+        const isEquipped = equipped[col.sam] === skin.id;
+        ctx.fillStyle = cursor ? 'rgba(60,40,80,0.92)' : 'rgba(20,14,28,0.88)';
+        ctx.fillRect(col.x - 190, ry, 380, 84);
+        ctx.strokeStyle = cursor ? PALETTE.spark : PALETTE.panelEdge;
+        ctx.lineWidth = cursor ? 2 : 1;
+        ctx.strokeRect(col.x - 190, ry, 380, 84);
+        ctx.lineWidth = 1;
+        // Preview: the recolored samurai when it loaded; the default art
+        // when the skin file is missing (never a blank).
+        const img = !skin.comingSoon && assets ? assets[skinAssetKey(skin.id)] : null;
+        if (img) drawRaster(img, col.x - 140, ry + 78, 72);
+        else if (!skin.comingSoon) {
+          const def = assets ? (col.sam === 'red' ? assets.samuraiRed : assets.samuraiBlue) : null;
+          if (def) drawRaster(def, col.x - 140, ry + 78, 72);
+        }
+        ctx.textAlign = 'left';
+        ctx.fillStyle = skin.comingSoon ? PALETTE.muted : PALETTE.text;
+        ctx.font = `bold 17px ${FONT}`;
+        ctx.fillText(cursor ? `▶ ${skin.name}` : skin.name, col.x - 92, ry + 32);
+        ctx.font = `14px ${FONT}`;
+        if (skin.comingSoon) {
+          ctx.fillStyle = PALETTE.muted;
+          ctx.fillText(`COMING SOON — ${skin.price} COINS`, col.x - 92, ry + 58);
+        } else if (isEquipped) {
+          ctx.fillStyle = PALETTE.spark;
+          ctx.fillText('EQUIPPED', col.x - 92, ry + 58);
+        } else if (isOwned) {
+          ctx.fillStyle = PALETTE.text;
+          ctx.fillText('OWNED — ENTER TO EQUIP', col.x - 92, ry + 58);
+        } else {
+          ctx.fillStyle = coins >= skin.price ? PALETTE.text : PALETTE.hpBad;
+          ctx.fillText(`${skin.price} COINS — ENTER TO BUY`, col.x - 92, ry + 58);
+        }
+        ctx.textAlign = 'center';
+        ry += 96;
+      }
+    }
+    if (shop.msg) {
+      ctx.fillStyle = shop.msg.startsWith('NEED') ? PALETTE.hpBad : PALETTE.spark;
+      ctx.font = `bold 18px ${FONT}`;
+      ctx.fillText(shop.msg, FIELD.width / 2, 668);
+    }
+    ctx.fillStyle = PALETTE.muted;
+    ctx.font = `14px ${FONT}`;
+    ctx.fillText('A / D  COLUMN      W / S  SKIN      ENTER  BUY / EQUIP      ESC  BACK', FIELD.width / 2, 696);
     ctx.textAlign = 'left';
   }
 
   // ---------------------------------------------------------- frame
-  function render(state, screen, dt, best, selection, kaijuSel, diffSel, preview) {
+  function render(state, screen, dt, best, selection, kaijuSel, diffSel, preview, ui) {
     updateShake(dt);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#0d0916';
@@ -722,23 +1050,24 @@ export function createRenderer(canvas, assets) {
     const shake = shakeOffset();
     ctx.setTransform(view.scale, 0, 0, view.scale, view.ox + shake.x * view.scale, view.oy + shake.y * view.scale);
     ctx.imageSmoothingEnabled = false;
-    drawBackground(state.elapsed);
+    drawBackground(state.elapsed, state.arena);
     // Preview: one character, centred, breathing on the backdrop. No HUD,
     // no other fighter — the clip is just that character, clean.
     if (screen === 'preview') {
       const [kind] = (preview || '').split('-');
-      if (kind === 'samurai') drawRonin(state, state.elapsed);
+      if (kind === 'samurai') drawRonin(state, state.elapsed, ui);
       else if (kind === 'kaiju') drawRaiju(state, state.elapsed);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       return;
     }
-    // The select screen hides the duelists — the cards and the difficulty
-    // buttons are the scene there, and the fighters behind them would
-    // overlap the UI. The title keeps them (the standoff is the title).
-    if (screen !== 'select') {
+    // The select and shop screens hide the duelists — the cards and the
+    // shop rows are the scene there, and the fighters behind them would
+    // overlap the UI. The title keeps them (the standoff is the title),
+    // and the round intro keeps them behind its card.
+    if (screen !== 'select' && screen !== 'shop') {
       drawRaiju(state, state.elapsed);
       drawDash(state);
-      drawRonin(state, state.elapsed);
+      drawRonin(state, state.elapsed, ui);
       drawSlashArc(state);
       drawBolts(state);
       drawWaves(state);
@@ -749,10 +1078,12 @@ export function createRenderer(canvas, assets) {
     // HUD stays still: redraw it without the shake offset.
     ctx.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
     if (screen === 'play' || screen === 'paused') drawHud(state, screen);
-    if (screen === 'title') drawTitle(state, best);
-    if (screen === 'select') drawSelect(state, selection || 'blue', kaijuSel || 'fire', diffSel || 'medium');
+    if (screen === 'title') drawTitle(state, best, ui);
+    if (screen === 'select') drawSelect(state, selection || 'blue', kaijuSel || 'fire', diffSel || 'medium', ui);
+    if (screen === 'roundIntro') drawRoundIntro(state, ui);
     if (screen === 'paused') drawPaused();
-    if (screen === 'over') drawEnd(state, best);
+    if (screen === 'over') drawEnd(state, best, ui);
+    if (screen === 'shop') drawShop(state, ui);
   }
 
   return { render, addTrauma, resize };

@@ -115,6 +115,12 @@ export function createAudio() {
       playTone({ type: 'sawtooth', frequency: 70, endFrequency: 55, duration: 0.8, gain: 0.3 });
       playNoise({ duration: 0.8, filterType: 'lowpass', frequency: 400, gain: 0.3, sweepTo: 120 });
     },
+    surge() {
+      // The deciding round: a lower, longer roar under a thunder crack.
+      playTone({ type: 'sawtooth', frequency: 55, endFrequency: 38, duration: 1.4, gain: 0.34 });
+      playTone({ type: 'sawtooth', frequency: 82, endFrequency: 50, duration: 1.1, gain: 0.18, when: 0.1 });
+      playNoise({ duration: 1.2, filterType: 'lowpass', frequency: 500, gain: 0.32, sweepTo: 90 });
+    },
     click() {
       playTone({ type: 'triangle', frequency: 660, duration: 0.05, gain: 0.12 });
     },

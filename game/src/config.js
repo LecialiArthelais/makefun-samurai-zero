@@ -14,9 +14,12 @@ export const TIME_LIMIT = 180;
 /** The three difficulties. The win chances are the design targets for a
  * human player who knows the moves: Easy is winnable by most (65%),
  * Medium is a real fight (45%), Hard is for players who have mastered the
- * duel (35%). The scaling is applied in world.js (reset + damage): ronin
+ * duel (40%), Extreme is the hardest storm (30% — ten points below Hard).
+ * The scaling is applied in world.js (reset + damage): ronin
  * HP, kaiju HP, kaiju damage, how long the kaiju rests between attacks,
- * and how fast it moves. Medium is the baseline the game shipped with. */
+ * and how fast it moves. Medium is the baseline the game shipped with.
+ * Balance targets are measured with the autopilot (see balance-test.mjs):
+ * round win Easy ~100%, Medium ~75%, Hard ~40%, Extreme ~30%. */
 export const DIFFICULTY = {
   easy: {
     id: 'easy', name: 'EASY', title: 'Easy',
@@ -33,11 +36,87 @@ export const DIFFICULTY = {
   hard: {
     id: 'hard', name: 'HARD', title: 'Hard',
     tagline: 'No mercy.',
-    winChance: 35,
-    roninHp: 140, raijuHp: 1450, damageScale: 1.1, restScale: 0.92, speedScale: 1.05,
+    winChance: 40,
+    roninHp: 140, raijuHp: 1400, damageScale: 1.05, restScale: 0.95, speedScale: 1.05,
+  },
+  extreme: {
+    id: 'extreme', name: 'EXTREME', title: 'Extreme',
+    tagline: 'Ten points past Hard.',
+    winChance: 30,
+    roninHp: 135, raijuHp: 1500, damageScale: 1.12, restScale: 0.9, speedScale: 1.06,
   },
 };
-export const DIFFICULTY_ORDER = ['easy', 'medium', 'hard'];
+export const DIFFICULTY_ORDER = ['easy', 'medium', 'hard', 'extreme'];
+
+/** Match length: Best of 3 (first to 2 rounds) or Best of 5 (first to 3).
+ * One round is one full duel against the same kaiju; every round starts
+ * both fighters at full HP, like a classic fighting game. */
+export const MATCH = {
+  lengths: [3, 5],
+  winsNeeded: { 3: 2, 5: 3 },
+};
+
+/** KAIJU SURGE: in a round that can decide the match, the kaiju hits 20%
+ * harder. One multiplier, applied in world.js hurtRonin() — every kaiju
+ * damage source flows through that one function, so the whole set scales
+ * together. HP, speed and telegraphs do not change: the player reads the
+ * same patterns, but every mistake costs more. */
+export const SURGE = {
+  damageMul: 1.2,
+  bannerText: 'KAIJU SURGE',
+  subText: 'THE STORM RAGES — KAIJU POWER +20%',
+};
+
+/** The three arenas. Visual only — no arena changes any number in the
+ * world, so the balance does not move. Each arena names its home kaiju
+ * (a taste recommendation, not a lock) and its home samurai (palette fit).
+ * `bg` is the key in assets.js; `ember` colours the ambient particles. */
+export const ARENAS = {
+  town: {
+    id: 'town', name: 'BURNING TOWN', title: 'Burning Town',
+    tagline: 'Edo at dusk — fire on the rooftops.',
+    homeKaiju: 'dragon', homeSamurai: 'both', bg: 'bgEdo', ember: '#ff9a3d',
+  },
+  sea: {
+    id: 'sea', name: 'MOONLIT SEA', title: 'Moonlit Sea',
+    tagline: 'The deep answers — torii on the tide.',
+    homeKaiju: 'sea', homeSamurai: 'blue', bg: 'bgSea', ember: '#bfe6ff',
+  },
+  mountain: {
+    id: 'mountain', name: 'BURNING MOUNTAIN', title: 'Burning Mountain',
+    tagline: 'Fuji wakes — lava under the smoke.',
+    homeKaiju: 'fire', homeSamurai: 'red', bg: 'bgMountain', ember: '#ff7a2a',
+  },
+};
+export const ARENA_ORDER = ['town', 'sea', 'mountain'];
+
+/** The save: one versioned object in localStorage, holding coins, owned
+ * skins, equipped skins and the best score. The old best-only key
+ * (BEST_KEY) is read once and folded in on first load, then left alone. */
+export const SAVE_KEY = 'samurai-zero.save.v1';
+export const SAVE_VERSION = 1;
+
+/** Coins: a match won pays 100, a match lost pays 25. One "fight" is one
+ * match, not one round — so 30 match wins buy the cheapest skin (3,000),
+ * exactly as the design promises. Skins are colour variants of a samurai:
+ * cosmetic only, never a gameplay change. Tiers 3–5 are designed and
+ * shown as COMING SOON (no asset yet) so the shop shows its depth. */
+export const SKINS = {
+  blueFrost: { id: 'blueFrost', samurai: 'blue', name: 'FROST', file: 'skin-blue-frost.png', price: 3000, tier: 1 },
+  blueForest: { id: 'blueForest', samurai: 'blue', name: 'FOREST', file: 'skin-blue-forest.png', price: 5000, tier: 2 },
+  blueShadow: { id: 'blueShadow', samurai: 'blue', name: 'SHADOW', price: 8000, tier: 3, comingSoon: true },
+  blueStorm: { id: 'blueStorm', samurai: 'blue', name: 'STORM', price: 12000, tier: 4, comingSoon: true },
+  blueMaster: { id: 'blueMaster', samurai: 'blue', name: 'MASTER GOLD', price: 20000, tier: 5, comingSoon: true },
+  redCrimson: { id: 'redCrimson', samurai: 'red', name: 'CRIMSON', file: 'skin-red-crimson.png', price: 3000, tier: 1 },
+  redViolet: { id: 'redViolet', samurai: 'red', name: 'VIOLET', file: 'skin-red-violet.png', price: 5000, tier: 2 },
+  redJade: { id: 'redJade', samurai: 'red', name: 'JADE', price: 8000, tier: 3, comingSoon: true },
+  redGold: { id: 'redGold', samurai: 'red', name: 'GOLD', price: 12000, tier: 4, comingSoon: true },
+  redMaster: { id: 'redMaster', samurai: 'red', name: 'MASTER GOLD', price: 20000, tier: 5, comingSoon: true },
+};
+export const SKIN_ORDER = {
+  blue: ['blueFrost', 'blueForest', 'blueShadow', 'blueStorm', 'blueMaster'],
+  red: ['redCrimson', 'redViolet', 'redJade', 'redGold', 'redMaster'],
+};
 
 export const RONIN = {
   width: 72,
@@ -105,8 +184,8 @@ export const SAMURAI_VARIANTS = {
 };
 export const SAMURAI_ORDER = ['blue', 'red'];
 
-/** The three kaiju bosses. The fight picks one at random, equal chance
- * (1/3 each). Each has its own attack set, drawn from the shared boss
+/** The three kaiju bosses. The player picks which one to face on the
+ * select screen. Each has its own attack set, drawn from the shared boss
  * mechanics: swipe = claw/bite (melee), bolt = ranged projectile
  * (fireball / wind gust), storm = ranged barrage (phase 3),
  * leap = charging ram/slam, stomp = ground shockwave (tsunami).
@@ -175,6 +254,8 @@ export const SCORE = {
   phaseBonus: 500,
   winTimeBonus: 10,
   noHitBonus: 1000,
+  /** Winning a whole match (not just one round) pays this on top. */
+  matchWinBonus: 500,
   /** Combo: consecutive hits within this window (seconds) build a combo. */
   comboWindow: 2.5,
   /** Every this many combo hits raises the score multiplier by one tier. */

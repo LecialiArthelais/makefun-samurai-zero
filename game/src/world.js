@@ -1,12 +1,14 @@
 // The game's rules and state, with no drawing and no browser in it: the
-// samurai, the kaiju boss machine (one of three types, picked at random with
-// equal chance), lightning, shockwaves, particles, score and the three-minute
-// clock. step() advances one fixed step and returns what happened as bit
-// flags, so the caller can react (sound, shake, hit-stop) without the world
-// knowing about screens or sound. Nothing here allocates after createWorld
-// returns; every random choice comes from the seeded generator passed in,
-// so the same seed always plays the same fight.
-import { DIFFICULTY, FIELD, KAIJU_ORDER, KAIJU_TYPES, RAIJU, RONIN, SAMURAI_VARIANTS, SCORE, STEP, TIME_LIMIT } from './config.js';
+// samurai, the kaiju boss machine (one of three types, picked by the
+// player), lightning, shockwaves, particles, score and the three-minute
+// clock. A match is Best of 3 or Best of 5: each round is one full duel,
+// and a round that can decide the match runs with KAIJU SURGE (+20%
+// kaiju damage). step() advances one fixed step and returns what happened
+// as bit flags, so the caller can react (sound, shake, hit-stop) without
+// the world knowing about screens or sound. Nothing here allocates after
+// createWorld returns; every random choice comes from the seeded generator
+// passed in, so the same seed always plays the same fight.
+import { DIFFICULTY, FIELD, KAIJU_ORDER, KAIJU_TYPES, MATCH, RAIJU, RONIN, SAMURAI_VARIANTS, SCORE, STEP, SURGE, TIME_LIMIT } from './config.js';
 
 export const EVENT_SLASH = 1;
 export const EVENT_HEAVY = 2;
@@ -22,6 +24,11 @@ export const EVENT_DASH = 1024;
 export const EVENT_JUMP = 2048;
 export const EVENT_ROAR = 4096;
 export const EVENT_COMBO = 8192;
+/** A deciding round just started with the kaiju surging (fired by the
+ * caller when startRound() reports surge — not by step()). */
+export const EVENT_SURGE = 16384;
+/** The clock ran out with both fighters at the same HP%: replay the round. */
+export const EVENT_DRAW = 32768;
 
 const MAX_PARTICLES = 160;
 const MAX_NUMBERS = 24;
@@ -78,8 +85,22 @@ export function createWorld(random) {
     combo: 0, comboTimer: 0, comboBest: 0,
     /** The match: which samurai the player picked, which kaiju was drawn. */
     samurai: 'blue', kaiju: 'fire',
-    /** Difficulty: easy / medium / hard (see DIFFICULTY in config.js). */
+    /** Difficulty: easy / medium / hard / extreme (see DIFFICULTY in config.js). */
     difficulty: 'medium',
+    /** The match: arena, length (3 or 5 rounds), rounds won each side,
+     * which round this is, and whether the kaiju surges this round. */
+    arena: 'town',
+    matchLength: 3,
+    winsNeeded: 2,
+    round: 1,
+    roundWins: { ronin: 0, raiju: 0 },
+    matchOver: false,
+    matchWon: false,
+    surge: false,
+    roundDraw: false,
+    /** Match totals for the end screen (the per-round counters reset). */
+    matchDamage: 0,
+    matchComboBest: 0,
   };
 
   /** The active difficulty's scaling numbers. */
@@ -97,11 +118,67 @@ export function createWorld(random) {
     return KAIJU_ORDER[Math.floor(random() * KAIJU_ORDER.length)];
   }
 
-  /** Set the match (player's samurai + the drawn kaiju) and start fresh. */
-  function setMatch(samuraiId, kaijuId) {
+  /** Set the match (samurai + kaiju + arena + length) and start it fresh. */
+  function setMatch(samuraiId, kaijuId, arenaId, matchLength) {
     state.samurai = samuraiId;
     state.kaiju = kaijuId;
+    state.arena = arenaId || 'town';
+    const length = matchLength === 5 ? 5 : 3;
+    state.matchLength = length;
+    state.winsNeeded = MATCH.winsNeeded[length];
+    resetMatch();
+  }
+
+  /** A whole match starts over: round wins, the round counter and the
+   * score are cleared, then the first round begins. */
+  function resetMatch() {
+    state.roundWins = { ronin: 0, raiju: 0 };
+    state.round = 1;
+    state.matchOver = false;
+    state.matchWon = false;
+    state.roundDraw = false;
+    state.score = 0;
+    state.matchDamage = 0;
+    state.matchComboBest = 0;
     reset();
+  }
+
+  /** One round starts: fresh positions, HP and clock, and the surge flag
+   * for a round that can decide the match. The score and the round wins
+   * carry over — they belong to the match, not the round. Returns true
+   * when the kaiju surges this round. */
+  function startRound() {
+    reset();
+    state.surge = state.roundWins.ronin === state.winsNeeded - 1
+      || state.roundWins.raiju === state.winsNeeded - 1;
+    if (state.surge) raiju.aura = 1;
+    return state.surge;
+  }
+
+  /** The round just ended (state.over). Record its winner, decide whether
+   * the match is over, and advance the round counter. A drawn round (both
+   * fighters at the same HP% when the clock ran out) is replayed: no win
+   * is recorded and the round number does not move. */
+  function endRound() {
+    if (state.roundDraw) {
+      state.roundDraw = false;
+      return { matchOver: false, matchWon: false, roundDraw: true };
+    }
+    if (state.won) state.roundWins.ronin += 1;
+    else state.roundWins.raiju += 1;
+    if (state.roundWins.ronin >= state.winsNeeded) {
+      state.matchOver = true;
+      state.matchWon = true;
+      state.score += SCORE.matchWinBonus;
+      return { matchOver: true, matchWon: true, roundDraw: false };
+    }
+    if (state.roundWins.raiju >= state.winsNeeded) {
+      state.matchOver = true;
+      state.matchWon = false;
+      return { matchOver: true, matchWon: false, roundDraw: false };
+    }
+    state.round += 1;
+    return { matchOver: false, matchWon: false, roundDraw: false };
   }
 
   function reset() {
@@ -118,7 +195,9 @@ export function createWorld(random) {
     for (const b of bolts) b.active = false;
     for (const w of waves) w.active = false;
     for (const p of projectiles) p.active = false;
-    state.score = 0; state.timeLeft = TIME_LIMIT; state.over = false; state.won = false;
+    // Score is NOT reset here: it accumulates across the rounds of a
+    // match (resetMatch clears it when a new match starts).
+    state.timeLeft = TIME_LIMIT; state.over = false; state.won = false;
     state.noHit = true; state.hits = 0; state.damageDealt = 0; state.elapsed = 0; state.endTimer = 0;
     state.combo = 0; state.comboTimer = 0; state.comboBest = 0;
   }
@@ -165,12 +244,14 @@ export function createWorld(random) {
     raiju.hp = Math.max(0, raiju.hp - amount);
     raiju.flash = 0.12;
     state.damageDealt += amount;
+    state.matchDamage += amount;
     // Combo: this hit chains onto the last one if it lands inside the window.
     // Getting hurt breaks it (see hurtRonin); the window expiring does too.
     const prevMult = comboMultiplier(state.combo);
     state.combo += 1;
     state.comboTimer = SCORE.comboWindow;
     if (state.combo > state.comboBest) state.comboBest = state.combo;
+    if (state.combo > state.matchComboBest) state.matchComboBest = state.combo;
     const mult = comboMultiplier(state.combo);
     state.score += amount * SCORE.perDamage * mult;
     state.hits += 1;
@@ -197,8 +278,11 @@ export function createWorld(random) {
 
   function hurtRonin(amount, x, y) {
     if (ronin.invulnerable > 0 || ronin.dashTime > 0 || state.over) return false;
-    // Difficulty scales how hard the kaiju hits.
-    const scaled = Math.max(1, Math.round(amount * diff().damageScale));
+    // Difficulty scales how hard the kaiju hits; KAIJU SURGE adds 20%
+    // more on top in a deciding round. One multiplier, one place — every
+    // kaiju damage source (swipe, bolt, wave, slam, touch) flows here.
+    let scaled = Math.max(1, Math.round(amount * diff().damageScale));
+    if (state.surge) scaled = Math.max(1, Math.round(scaled * SURGE.damageMul));
     ronin.hp = Math.max(0, ronin.hp - scaled);
     ronin.invulnerable = RONIN.invulnerable;
     ronin.pose = 'hurt';
@@ -449,9 +533,18 @@ export function createWorld(random) {
     state.elapsed += dt;
     state.timeLeft = Math.max(0, TIME_LIMIT - state.elapsed);
     if (state.timeLeft <= 0) {
+      // The clock ran out: the round goes to the fighter with the higher
+      // HP percentage. An exact tie replays the round.
       state.over = true;
-      state.won = false;
-      return EVENT_LOSE;
+      const roninPct = ronin.hp / diff().roninHp;
+      const raijuPct = raiju.hp / diff().raijuHp;
+      if (Math.abs(roninPct - raijuPct) < 0.001) {
+        state.roundDraw = true;
+        state.won = false;
+        return EVENT_DRAW;
+      }
+      state.won = roninPct > raijuPct;
+      return state.won ? EVENT_WIN : EVENT_LOSE;
     }
 
     // --- Ronin timers.
@@ -647,5 +740,5 @@ export function createWorld(random) {
   }
 
   reset();
-  return { state, reset, step, setMatch, pickKaiju, setDifficulty };
+  return { state, reset, resetMatch, startRound, endRound, step, setMatch, pickKaiju, setDifficulty };
 }

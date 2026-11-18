@@ -20,12 +20,14 @@ const KEYMAP = {
   Escape: 'pause', KeyP: 'pause',
   Enter: 'confirm',
   KeyM: 'mute',
-  Digit1: 'diff1', Digit2: 'diff2', Digit3: 'diff3',
+  Digit1: 'diff1', Digit2: 'diff2', Digit3: 'diff3', Digit4: 'diff4',
+  // Select screen only: Q/E cycle the arena, T toggles Best of 3 / 5.
+  KeyQ: 'arenaPrev', KeyE: 'arenaNext', KeyT: 'matchToggle',
 };
 
 export function createInput(canvas, onFirstGesture) {
   const held = { left: false, right: false, jump: false };
-  const pressed = { jump: false, slash: false, heavy: false, special: false, dash: false, pause: false, confirm: false, mute: false, diff1: false, diff2: false, diff3: false };
+  const pressed = { jump: false, slash: false, heavy: false, special: false, dash: false, pause: false, confirm: false, mute: false, diff1: false, diff2: false, diff3: false, diff4: false, arenaPrev: false, arenaNext: false, matchToggle: false };
   let gestured = false;
 
   function gesture() {
@@ -73,7 +75,8 @@ export function createInput(canvas, onFirstGesture) {
       slash: pressed.slash, heavy: pressed.heavy,
       special: pressed.special, dash: pressed.dash,
       pause: pressed.pause, confirm: pressed.confirm, mute: pressed.mute,
-      diff1: pressed.diff1, diff2: pressed.diff2, diff3: pressed.diff3,
+      diff1: pressed.diff1, diff2: pressed.diff2, diff3: pressed.diff3, diff4: pressed.diff4,
+      arenaPrev: pressed.arenaPrev, arenaNext: pressed.arenaNext, matchToggle: pressed.matchToggle,
     };
     for (const key of Object.keys(pressed)) pressed[key] = false;
     return out;
